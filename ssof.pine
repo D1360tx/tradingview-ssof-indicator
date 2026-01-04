@@ -1,0 +1,1479 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SSOF - Smart Structure & Order Flow
+// GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
+
+//@version=6
+indicator("Smart Structure & Order Flow [SSOF] V4.8", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────── Auto-Timeframe Settings ──────────────────────────
+grpAutoTF = "🕐 Auto-Timeframe Adjustment"
+useAutoTF = input.bool(true, "Enable Auto Timeframe Adjustment?", group=grpAutoTF, tooltip="Automatically adjust swing length based on current timeframe")
+tf1m = input.int(3, "1m Swing Length", minval=1, maxval=50, group=grpAutoTF)
+tf5m = input.int(5, "5m Swing Length", minval=1, maxval=50, group=grpAutoTF)
+tf15m = input.int(7, "15m Swing Length", minval=1, maxval=50, group=grpAutoTF)
+tf30m = input.int(5, "30m Swing Length", minval=1, maxval=50, group=grpAutoTF)
+tf1h = input.int(10, "1H Swing Length", minval=1, maxval=50, group=grpAutoTF)
+tf4h = input.int(15, "4H Swing Length", minval=1, maxval=50, group=grpAutoTF)
+tfD = input.int(20, "Daily Swing Length", minval=1, maxval=50, group=grpAutoTF)
+tfW = input.int(25, "Weekly Swing Length", minval=1, maxval=50, group=grpAutoTF)
+
+// ─────────────────────────── Structure Settings ───────────────────────────────
+grpStructure = "⚙️ Structure Settings"
+manualSwingLength = input.int(5, "Manual Swing Length", minval=1, maxval=50, group=grpStructure, tooltip="Used when Auto-TF is disabled")
+showInternalStructure = input.bool(false, "Show Internal Structure?", group=grpStructure, tooltip="Show minor pivots within the major trend")
+internalLength = input.int(3, "Internal Lookback Length", minval=1, maxval=20, group=grpStructure, tooltip="Lookback for internal structure pivots")
+showLiqSweeps = input.bool(true, "Show Liquidity Sweeps?", group=grpStructure, tooltip="Mark when price sweeps a level but closes back inside")
+showDevelopingLevels = input.bool(true, "Show Developing BOS Levels?", group=grpStructure, tooltip="Show dashed lines at swing levels before BOS confirmation")
+showZigZag = input.bool(true, "Show Zig-Zag Path?", group=grpStructure, tooltip="Connect swing points with trend-colored lines")
+maxZigZagLines = input.int(50, "Max Zig-Zag Lines", minval=1, maxval=100, group=grpStructure, tooltip="Number of recent zig-zag connections to display")
+showLabels = input.bool(true, "Show HH/HL/LH/LL Labels?", group=grpStructure)
+showDashboard = input.bool(true, "Show Trend Dashboard?", group=grpStructure)
+dashboardPosition = input.string("Top Right", "Dashboard Position", options=["Top Left", "Top Right", "Bottom Left", "Bottom Right"], group=grpStructure)
+
+// ─────────────────────────── Protected Levels (A4) ────────────────────────────
+grpProtected = "🛡️ Protected Levels (Structure Anchors)"
+useProtectedLevels = input.bool(true, "Enable Protected Levels?", group=grpProtected, tooltip="Structure only invalidates when protected level breaks, not every swing")
+protectedLookback = input.int(2, "Protected Level Lookback (x Swing Length)", minval=1, maxval=5, group=grpProtected, tooltip="Multiplier of swing length to find origin low/high")
+showProtectedLines = input.bool(true, "Show Protected Level Lines?", group=grpProtected, tooltip="Draw horizontal lines at protected levels")
+protectedLineStyle = input.string("Dashed", "Protected Line Style", options=["Solid", "Dashed", "Dotted"], group=grpProtected)
+
+// ─────────────────────────── Internal Structure Filter (A5) ───────────────────
+grpInternal = "🔍 Internal Structure Filter"
+useInternalFilter = input.bool(true, "Filter Internal Breaks?", group=grpInternal, tooltip="Ignore breaks that happen inside the last impulse range")
+showInternalBreaks = input.bool(false, "Show Internal Break Labels?", group=grpInternal, tooltip="Mark internal breaks that don't flip trend")
+showTrapWarnings = input.bool(true, "Show Trap Warnings?", group=grpInternal, tooltip="Alert when price breaks internal level but stays in range")
+
+// ─────────────────────────── Consolidation Detection (A1) ─────────────────────
+grpConsolidation = "📊 Consolidation Detection"
+useConsolidation = input.bool(true, "Enable Consolidation Detection?", group=grpConsolidation, tooltip="Detect when market is range-bound")
+consolidationBars = input.int(20, "Lookback Bars", minval=10, maxval=100, group=grpConsolidation, tooltip="Number of bars to analyze for consolidation")
+consolidationRangeATR = input.float(2.0, "Max Range (ATR)", minval=0.5, maxval=5.0, step=0.25, group=grpConsolidation, tooltip="Maximum range size as ATR multiple to qualify as consolidation")
+swingClusterATR = input.float(0.5, "Swing Cluster Tolerance (ATR)", minval=0.1, maxval=2.0, step=0.1, group=grpConsolidation, tooltip="How close swing points must be to count as clustered")
+minSwingTouches = input.int(2, "Min Touches (each side)", minval=2, maxval=5, group=grpConsolidation, tooltip="Minimum swing highs AND swing lows needed")
+showConsolidationBox = input.bool(true, "Show Consolidation Range Box?", group=grpConsolidation, tooltip="Draw a box around the consolidation range")
+showHistoricalConsolidation = input.bool(true, "Show Historical Consolidation?", group=grpConsolidation, tooltip="Keep broken consolidation zones visible (dimmed)")
+maxHistoricalBoxes = input.int(5, "Max Historical Boxes", minval=1, maxval=20, group=grpConsolidation, tooltip="Number of historical consolidation boxes to keep")
+consolidationColor = input.color(color.rgb(128, 128, 128, 80), "Consolidation Box Color", group=grpConsolidation)
+brokenConsolidationColor = input.color(color.rgb(100, 100, 100, 90), "Broken Consolidation Color", group=grpConsolidation)
+
+// ─────────────────────────── Displacement Strength (A6) ───────────────────────
+grpDisplacement = "💪 Displacement Strength (BOS Quality)"
+useDisplacementGrading = input.bool(true, "Grade BOS Strength?", group=grpDisplacement, tooltip="Classify BOS as Strong or Weak based on candle characteristics")
+strongBOSThreshold = input.float(0.5, "Strong BOS (Body/ATR Ratio)", minval=0.1, maxval=2.0, step=0.1, group=grpDisplacement, tooltip="Body must be > this % of ATR to be strong")
+showStrengthLabels = input.bool(true, "Show Strength on BOS Labels?", group=grpDisplacement, tooltip="Add (S) or (W) suffix to BOS labels")
+atrPeriod = input.int(14, "ATR Period", minval=5, maxval=50, group=grpDisplacement)
+
+// ─────────────────────────── Zone Settings (A7) ───────────────────────────────
+grpZones = "📦 Supply & Demand Zones"
+showZones = input.bool(true, "Show Supply/Demand Zones?", group=grpZones)
+zoneDirectionFilter = input.bool(true, "Filter Zones by Trend?", group=grpZones, tooltip="Only show demand in bullish structure, supply in bearish")
+requireFVG = input.bool(false, "Require Imbalance/FVG?", group=grpZones, tooltip="Only show zones that have FVG confirmation for higher probability")
+fvgMinSize = input.float(0.5, "Min FVG Size (ATR %)", minval=0.1, maxval=5.0, step=0.1, group=grpZones, tooltip="Minimum FVG size as percentage of ATR")
+removeMitigated = input.bool(true, "Remove Mitigated Zones?", group=grpZones, tooltip="Auto-delete zones that price breaks through")
+zoneExtendBars = input.int(20, "Zone Extension (bars)", minval=5, maxval=100, group=grpZones)
+maxZones = input.int(10, "Max Zones to Show", minval=3, maxval=50, group=grpZones)
+
+// ─────────────────────────── Pullback Entry (Fib Golden Zone) ─────────────────
+grpPullback = "📐 Pullback Entry (Fib Golden Zone)"
+showPullbackZone = input.bool(true, "Show Pullback Entry Zone?", group=grpPullback, tooltip="Draw fib retracement golden zone after BOS")
+fibUpperLevel = input.float(0.5, "Fib Upper Level", minval=0.1, maxval=0.9, step=0.01, group=grpPullback, tooltip="Upper boundary of golden zone")
+fibLowerLevel = input.float(0.618, "Fib Lower Level", minval=0.1, maxval=0.9, step=0.01, group=grpPullback, tooltip="Lower boundary of golden zone (deeper retracement)")
+fibDeepLevel = input.float(0.786, "Fib Deep Level (Discount)", minval=0.5, maxval=0.95, step=0.01, group=grpPullback, tooltip="Deeper discount zone - higher risk/reward")
+showDeepZone = input.bool(false, "Show Deep Discount Zone?", group=grpPullback, tooltip="Show the deeper 0.618-0.786 zone")
+goldenZoneColorBull = input.color(color.rgb(0, 200, 100, 80), "Bullish Golden Zone Color", group=grpPullback)
+goldenZoneColorBear = input.color(color.rgb(255, 140, 0, 80), "Bearish Golden Zone Color", group=grpPullback)
+deepZoneColor = input.color(color.rgb(255, 100, 100, 85), "Deep Zone Color", group=grpPullback)
+
+// Confirmation settings
+grpConfirmation = "✅ Entry Confirmation"
+confirmationType = input.string("Internal BOS", "Confirmation Type", options=["None", "Displacement Candle", "Internal BOS", "Both"], group=grpConfirmation, tooltip="How to confirm pullback is ending")
+displacementATR = input.float(0.5, "Displacement Candle (Body/ATR)", minval=0.2, maxval=1.5, step=0.1, group=grpConfirmation, tooltip="Minimum candle body size as ATR ratio for displacement confirmation")
+showConfirmationSignal = input.bool(true, "Show Entry Signal?", group=grpConfirmation, tooltip="Show label when confirmation triggers in golden zone")
+showFibLines = input.bool(true, "Show Fib Level Lines?", group=grpConfirmation, tooltip="Draw horizontal lines at key fib levels")
+
+// ─────────────────────────── Styling ──────────────────────────────────────────
+grpStyle = "🎨 Styling"
+bullColor = input.color(color.rgb(0, 230, 118), "Bullish Color", group=grpStyle)
+bearColor = input.color(color.rgb(255, 82, 82), "Bearish Color", group=grpStyle)
+neutralColor = input.color(color.gray, "Neutral Color", group=grpStyle)
+internalColor = input.color(color.rgb(255, 235, 59), "Internal Structure Color", group=grpStyle)
+strongBOSColor = input.color(color.rgb(0, 255, 170), "Strong BOS Color", group=grpStyle)
+weakBOSColor = input.color(color.rgb(255, 170, 100), "Weak BOS Color", group=grpStyle)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░░ AUTO-TIMEFRAME DETECTION ░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+currentTFMinutes = timeframe.in_seconds() / 60
+
+var int swingLength = manualSwingLength
+
+if useAutoTF
+    if currentTFMinutes <= 1
+        swingLength := tf1m
+    else if currentTFMinutes <= 5
+        swingLength := tf5m
+    else if currentTFMinutes <= 15
+        swingLength := tf15m
+    else if currentTFMinutes <= 30
+        swingLength := tf30m
+    else if currentTFMinutes <= 60
+        swingLength := tf1h
+    else if currentTFMinutes <= 240
+        swingLength := tf4h
+    else if currentTFMinutes <= 1440
+        swingLength := tfD
+    else
+        swingLength := tfW
+else
+    swingLength := manualSwingLength
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░░░░ TYPE DEFINITIONS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+type Zone
+    box zoneBox
+    label zoneLabel
+    float top
+    float bottom
+    int startBar
+    bool isSupply
+    bool tested
+    bool invalidated
+    bool hasFVG
+
+type PullbackZone
+    box goldenBox
+    box deepBox
+    line fib0Line
+    line fib50Line
+    line fib618Line
+    line fib786Line
+    line fib100Line
+    label fib0Label
+    label fib50Label
+    label fib618Label
+    label fib786Label
+    label fib100Label
+    float fibOrigin       // 0% level (swing low for bull, swing high for bear)
+    float fibExtreme      // 100% level (swing high for bull, swing low for bear)
+    float fib50Price
+    float fib618Price
+    float fib786Price
+    int direction         // 1 = bullish, -1 = bearish
+    int startBar
+    bool isActive
+    bool enteredZone
+    bool confirmationTriggered
+
+// Arrays
+var array<line> zigZagLines = array.new<line>()
+var array<Zone> activeZones = array.new<Zone>()
+var PullbackZone activePullbackZone = na
+var array<box> historicalConsolidationBoxes = array.new<box>()
+
+// Arrays for tracking recent swing points (for consolidation range)
+var array<float> recentSwingHighs = array.new<float>()
+var array<float> recentSwingLows = array.new<float>()
+var int maxSwingsToTrack = 10
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░░░░░ HELPER FUNCTIONS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+bodyClosesAbove(level) =>
+    close > level and close[1] <= level
+
+bodyClosesBelow(level) =>
+    close < level and close[1] >= level
+
+detectBullishFVG(lookback) =>
+    result = false
+    for i = 1 to lookback
+        if low[i-1] > high[i+1]
+            result := true
+            break
+    result
+
+detectBearishFVG(lookback) =>
+    result = false
+    for i = 1 to lookback
+        if high[i-1] < low[i+1]
+            result := true
+            break
+    result
+
+getLineStyle(styleStr) =>
+    switch styleStr
+        "Solid" => line.style_solid
+        "Dashed" => line.style_dashed
+        "Dotted" => line.style_dotted
+        => line.style_dashed
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░░░ PIVOT DETECTION ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Main Swing Structure
+swingHigh = ta.pivothigh(high, swingLength, swingLength)
+swingLow = ta.pivotlow(low, swingLength, swingLength)
+
+// Internal Structure
+internalHigh = ta.pivothigh(high, internalLength, internalLength)
+internalLow = ta.pivotlow(low, internalLength, internalLength)
+
+// ATR for displacement grading and zone sizing
+atrValue = ta.atr(atrPeriod)
+
+// Track confirmed levels
+var float confirmedSwingHigh = na
+var float confirmedSwingLow = na
+var int confirmedHighBar = na
+var int confirmedLowBar = na
+
+var float prevSwingHigh = na
+var float prevSwingLow = na
+var int prevHighBar = na
+var int prevLowBar = na
+
+// Update swing highs
+if not na(swingHigh)
+    prevSwingHigh := confirmedSwingHigh
+    prevHighBar := confirmedHighBar
+    confirmedSwingHigh := swingHigh
+    confirmedHighBar := bar_index - swingLength
+    
+    // Track for consolidation detection
+    array.push(recentSwingHighs, swingHigh)
+    if array.size(recentSwingHighs) > maxSwingsToTrack
+        array.shift(recentSwingHighs)
+
+// Update swing lows
+if not na(swingLow)
+    prevSwingLow := confirmedSwingLow
+    prevLowBar := confirmedLowBar
+    confirmedSwingLow := swingLow
+    confirmedLowBar := bar_index - swingLength
+    
+    // Track for consolidation detection
+    array.push(recentSwingLows, swingLow)
+    if array.size(recentSwingLows) > maxSwingsToTrack
+        array.shift(recentSwingLows)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░░░ MARKET STRUCTURE LOGIC ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Structure State: 1 = bullish, -1 = bearish, 0 = consolidating
+var int structureState = 0
+var int prevStructureState = 0
+
+// Protected Levels (A4)
+var float protectedLow = na
+var float protectedHigh = na
+var int protectedLowBar = na
+var int protectedHighBar = na
+
+// Impulse Range (A5)
+var float impulseHigh = na
+var float impulseLow = na
+var int lastImpulseBar = na
+
+// Consolidation tracking (A1)
+var int barsSinceImpulse = 0
+var float consolidationRangeHigh = na
+var float consolidationRangeLow = na
+var box consolidationBox = na
+
+// BOS Strength tracking
+var bool lastBOSStrong = false
+
+// Raw BOS detection (before filters)
+rawBullishBOS = not na(confirmedSwingHigh) and bodyClosesAbove(confirmedSwingHigh) and close[1] <= confirmedSwingHigh
+rawBearishBOS = not na(confirmedSwingLow) and bodyClosesBelow(confirmedSwingLow) and close[1] >= confirmedSwingLow
+
+// Calculate BOS strength (A6)
+bosBodySize = math.abs(close - open)
+bosIsStrong = bosBodySize > (atrValue * strongBOSThreshold)
+
+// ─────────────────────────── Internal Structure Filter (A5) ───────────────────
+// Check if break is inside impulse range
+isInsideImpulseRange = false
+if useInternalFilter and not na(impulseHigh) and not na(impulseLow)
+    if rawBullishBOS
+        // Bullish BOS is internal if we're still within the bearish impulse range
+        if structureState == -1 and close < impulseHigh
+            isInsideImpulseRange := true
+    if rawBearishBOS
+        // Bearish BOS is internal if we're still within the bullish impulse range
+        if structureState == 1 and close > impulseLow
+            isInsideImpulseRange := true
+
+// Internal break detection (for labeling)
+internalBullBreak = rawBullishBOS and isInsideImpulseRange
+internalBearBreak = rawBearishBOS and isInsideImpulseRange
+
+// ─────────────────────────── Protected Level Check (A4) ───────────────────────
+// Structure invalidation via protected levels
+protectedLevelBroken = false
+if useProtectedLevels
+    if structureState == 1 and not na(protectedLow) and close < protectedLow
+        protectedLevelBroken := true
+    if structureState == -1 and not na(protectedHigh) and close > protectedHigh
+        protectedLevelBroken := true
+
+// ─────────────────────────── Final BOS Determination ──────────────────────────
+// Apply filters to determine valid BOS
+bullishBOS = rawBullishBOS and not isInsideImpulseRange
+bearishBOS = rawBearishBOS and not isInsideImpulseRange
+
+// If protected levels are enabled, also allow BOS on protected level break
+if useProtectedLevels and protectedLevelBroken
+    if structureState == 1 and close < protectedLow
+        bearishBOS := true
+    if structureState == -1 and close > protectedHigh
+        bullishBOS := true
+
+// ─────────────────────────── Structure State Update ───────────────────────────
+// Track previous state
+prevStructureState := structureState
+
+// Pre-calculate lookback values for protected levels (must be called on every bar for consistency)
+lookbackBars = swingLength * protectedLookback
+lowestLookback = ta.lowest(low, lookbackBars)
+highestLookback = ta.highest(high, lookbackBars)
+
+// Track consolidation state (declared here so it's available in BOS blocks)
+var bool wasConsolidating = false
+var int consolidationStartBar = na
+
+// Update structure on valid BOS
+if bullishBOS
+    structureState := 1
+    lastBOSStrong := bosIsStrong
+    barsSinceImpulse := 0
+    wasConsolidating := false
+    
+    // Set protected low (origin of the move)
+    protectedLow := lowestLookback
+    protectedLowBar := bar_index
+    
+    // Set impulse range
+    impulseLow := protectedLow
+    impulseHigh := high
+    lastImpulseBar := bar_index
+    
+    // Mark consolidation as broken (keep historical if enabled)
+    if not na(consolidationBox)
+        if showHistoricalConsolidation
+            // Finalize the box (stop extending, change color)
+            box.set_right(consolidationBox, bar_index)
+            box.set_bgcolor(consolidationBox, brokenConsolidationColor)
+            box.set_border_color(consolidationBox, color.rgb(80, 80, 80))
+            
+            // Add to historical array
+            array.push(historicalConsolidationBoxes, consolidationBox)
+            
+            // Limit historical boxes
+            if array.size(historicalConsolidationBoxes) > maxHistoricalBoxes
+                oldBox = array.shift(historicalConsolidationBoxes)
+                box.delete(oldBox)
+        else
+            box.delete(consolidationBox)
+        consolidationBox := na
+
+if bearishBOS
+    structureState := -1
+    lastBOSStrong := bosIsStrong
+    barsSinceImpulse := 0
+    wasConsolidating := false
+    
+    // Set protected high (origin of the move)
+    protectedHigh := highestLookback
+    protectedHighBar := bar_index
+    
+    // Set impulse range
+    impulseHigh := protectedHigh
+    impulseLow := low
+    lastImpulseBar := bar_index
+    
+    // Mark consolidation as broken (keep historical if enabled)
+    if not na(consolidationBox)
+        if showHistoricalConsolidation
+            // Finalize the box (stop extending, change color)
+            box.set_right(consolidationBox, bar_index)
+            box.set_bgcolor(consolidationBox, brokenConsolidationColor)
+            box.set_border_color(consolidationBox, color.rgb(80, 80, 80))
+            
+            // Add to historical array
+            array.push(historicalConsolidationBoxes, consolidationBox)
+            
+            // Limit historical boxes
+            if array.size(historicalConsolidationBoxes) > maxHistoricalBoxes
+                oldBox = array.shift(historicalConsolidationBoxes)
+                box.delete(oldBox)
+        else
+            box.delete(consolidationBox)
+        consolidationBox := na
+
+// ─────────────────────────── Consolidation Detection (A1) ─────────────────────
+// New approach: Detect tight ranges where swing points cluster
+
+// Function to check if values in array are clustered (within tolerance)
+isArrayClustered(arr, tolerance) =>
+    if array.size(arr) < 2
+        false
+    else
+        maxVal = array.max(arr)
+        minVal = array.min(arr)
+        spread = maxVal - minVal
+        spread <= tolerance
+
+// Function to get cluster center (average of array)
+getClusterCenter(arr) =>
+    if array.size(arr) == 0
+        na
+    else
+        array.avg(arr)
+
+if useConsolidation
+    barsSinceImpulse += 1
+    
+    // Clear swing arrays on new BOS (fresh start)
+    if bullishBOS or bearishBOS
+        array.clear(recentSwingHighs)
+        array.clear(recentSwingLows)
+    
+    // Calculate current price range over lookback
+    rangeHigh = ta.highest(high, consolidationBars)
+    rangeLow = ta.lowest(low, consolidationBars)
+    currentRange = rangeHigh - rangeLow
+    
+    // Check conditions for consolidation
+    hasEnoughSwings = array.size(recentSwingHighs) >= minSwingTouches and array.size(recentSwingLows) >= minSwingTouches
+    isRangeTight = currentRange <= (atrValue * consolidationRangeATR)
+    
+    // Check if swing highs are clustered (all within tolerance of each other)
+    swingHighsTolerance = atrValue * swingClusterATR
+    swingLowsTolerance = atrValue * swingClusterATR
+    highsClustered = isArrayClustered(recentSwingHighs, swingHighsTolerance)
+    lowsClustered = isArrayClustered(recentSwingLows, swingLowsTolerance)
+    
+    // Consolidation criteria:
+    // 1. Range is tight relative to ATR
+    // 2. Have enough swing points
+    // 3. Swing highs are clustered (testing similar resistance)
+    // 4. Swing lows are clustered (testing similar support)
+    isConsolidating = isRangeTight and hasEnoughSwings and highsClustered and lowsClustered
+    
+    // Enter consolidation
+    if isConsolidating and not wasConsolidating
+        wasConsolidating := true
+        consolidationStartBar := bar_index - consolidationBars
+        structureState := 0
+        
+        // Define range using clustered swing points (tighter than raw high/low)
+        consolidationRangeHigh := array.max(recentSwingHighs)
+        consolidationRangeLow := array.min(recentSwingLows)
+        
+        // Remove overlapping historical boxes
+        if showHistoricalConsolidation and array.size(historicalConsolidationBoxes) > 0
+            for i = array.size(historicalConsolidationBoxes) - 1 to 0
+                histBox = array.get(historicalConsolidationBoxes, i)
+                histTop = box.get_top(histBox)
+                histBottom = box.get_bottom(histBox)
+                priceOverlap = not (consolidationRangeHigh < histBottom or consolidationRangeLow > histTop)
+                if priceOverlap
+                    box.delete(histBox)
+                    array.remove(historicalConsolidationBoxes, i)
+        
+        // Draw consolidation box
+        if showConsolidationBox
+            if not na(consolidationBox)
+                box.delete(consolidationBox)
+            consolidationBox := box.new(consolidationStartBar, consolidationRangeHigh, 
+                                        bar_index + 10, consolidationRangeLow,
+                                        bgcolor=consolidationColor, 
+                                        border_color=color.gray,
+                                        border_width=1,
+                                        border_style=line.style_dotted)
+    
+    // Exit consolidation (breakout)
+    exitedConsolidation = wasConsolidating and not isConsolidating
+    brokeAbove = wasConsolidating and close > consolidationRangeHigh
+    brokeBelow = wasConsolidating and close < consolidationRangeLow
+    
+    if exitedConsolidation or brokeAbove or brokeBelow
+        if brokeAbove
+            structureState := 1
+        else if brokeBelow
+            structureState := -1
+        
+        wasConsolidating := false
+        
+        if not na(consolidationBox)
+            if showHistoricalConsolidation
+                box.set_right(consolidationBox, bar_index)
+                box.set_bgcolor(consolidationBox, brokenConsolidationColor)
+                box.set_border_color(consolidationBox, color.rgb(80, 80, 80))
+                array.push(historicalConsolidationBoxes, consolidationBox)
+                
+                if array.size(historicalConsolidationBoxes) > maxHistoricalBoxes
+                    oldBox = array.shift(historicalConsolidationBoxes)
+                    box.delete(oldBox)
+            else
+                box.delete(consolidationBox)
+            consolidationBox := na
+    
+    // Update consolidation box while in consolidation
+    if wasConsolidating and showConsolidationBox and not na(consolidationBox)
+        box.set_right(consolidationBox, bar_index + 10)
+        
+        // Update range if new swings extend it slightly
+        if array.size(recentSwingHighs) > 0
+            newHigh = array.max(recentSwingHighs)
+            if newHigh > consolidationRangeHigh
+                consolidationRangeHigh := newHigh
+                box.set_top(consolidationBox, consolidationRangeHigh)
+        
+        if array.size(recentSwingLows) > 0
+            newLow = array.min(recentSwingLows)
+            if newLow < consolidationRangeLow
+                consolidationRangeLow := newLow
+                box.set_bottom(consolidationBox, consolidationRangeLow)
+
+// Liquidity Sweep detection
+bullSweep = showLiqSweeps and not na(confirmedSwingHigh) and high > confirmedSwingHigh and close <= confirmedSwingHigh
+bearSweep = showLiqSweeps and not na(confirmedSwingLow) and low < confirmedSwingLow and close >= confirmedSwingLow
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░░░░ VISUALIZATION ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────── Protected Level Lines ────────────────────────────────
+var line protectedLowLine = na
+var line protectedHighLine = na
+var label protectedLowLabel = na
+var label protectedHighLabel = na
+
+if showProtectedLines and useProtectedLevels
+    lineStyle = getLineStyle(protectedLineStyle)
+    
+    // Update/create protected low line (bullish structure)
+    if structureState == 1 and not na(protectedLow)
+        if na(protectedLowLine)
+            protectedLowLine := line.new(protectedLowBar, protectedLow, bar_index + 5, protectedLow,
+                                         color=bullColor, width=2, style=lineStyle)
+            protectedLowLabel := label.new(bar_index + 5, protectedLow, "Protected Low",
+                                           style=label.style_label_left,
+                                           color=color.new(bullColor, 80),
+                                           textcolor=bullColor,
+                                           size=size.tiny)
+        else
+            line.set_x2(protectedLowLine, bar_index + 5)
+            label.set_x(protectedLowLabel, bar_index + 5)
+    else
+        if not na(protectedLowLine)
+            line.delete(protectedLowLine)
+            label.delete(protectedLowLabel)
+            protectedLowLine := na
+            protectedLowLabel := na
+    
+    // Update/create protected high line (bearish structure)
+    if structureState == -1 and not na(protectedHigh)
+        if na(protectedHighLine)
+            protectedHighLine := line.new(protectedHighBar, protectedHigh, bar_index + 5, protectedHigh,
+                                          color=bearColor, width=2, style=lineStyle)
+            protectedHighLabel := label.new(bar_index + 5, protectedHigh, "Protected High",
+                                            style=label.style_label_left,
+                                            color=color.new(bearColor, 80),
+                                            textcolor=bearColor,
+                                            size=size.tiny)
+        else
+            line.set_x2(protectedHighLine, bar_index + 5)
+            label.set_x(protectedHighLabel, bar_index + 5)
+    else
+        if not na(protectedHighLine)
+            line.delete(protectedHighLine)
+            label.delete(protectedHighLabel)
+            protectedHighLine := na
+            protectedHighLabel := na
+
+// ─────────────────────── Swing High/Low Labels ────────────────────────────────
+if showLabels and not na(swingHigh)
+    isHigherHigh = not na(prevSwingHigh) and swingHigh > prevSwingHigh
+    isLowerHigh = not na(prevSwingHigh) and swingHigh < prevSwingHigh
+    labelColor = isHigherHigh ? bullColor : (isLowerHigh ? bearColor : neutralColor)
+    
+    if isHigherHigh
+        labelText = "HH\n" + str.tostring(swingHigh, format.mintick)
+        label.new(bar_index - swingLength, swingHigh, labelText, 
+                  style=label.style_label_down, 
+                  color=color.new(labelColor, 80), 
+                  textcolor=color.white, 
+                  size=size.small)
+    else
+        labelText = isLowerHigh ? "LH" : "H"
+        label.new(bar_index - swingLength, swingHigh, labelText, 
+                  style=label.style_label_down, 
+                  color=color.new(labelColor, 80), 
+                  textcolor=labelColor, 
+                  size=size.small)
+
+if showLabels and not na(swingLow)
+    isHigherLow = not na(prevSwingLow) and swingLow > prevSwingLow
+    isLowerLow = not na(prevSwingLow) and swingLow < prevSwingLow
+    labelColor = isHigherLow ? bullColor : (isLowerLow ? bearColor : neutralColor)
+    
+    if isLowerLow
+        labelText = "LL\n" + str.tostring(swingLow, format.mintick)
+        label.new(bar_index - swingLength, swingLow, labelText, 
+                  style=label.style_label_up, 
+                  color=color.new(labelColor, 80), 
+                  textcolor=color.white, 
+                  size=size.small)
+    else
+        labelText = isHigherLow ? "HL" : "L"
+        label.new(bar_index - swingLength, swingLow, labelText, 
+                  style=label.style_label_up, 
+                  color=color.new(labelColor, 80), 
+                  textcolor=labelColor, 
+                  size=size.small)
+
+// ─────────────────────── Internal Structure ───────────────────────────────────
+if showInternalStructure and not na(internalHigh)
+    label.new(bar_index - internalLength, internalHigh, "iH", 
+              style=label.style_label_down, 
+              color=color.new(internalColor, 70), 
+              textcolor=internalColor, 
+              size=size.tiny)
+    line.new(bar_index - internalLength, internalHigh, bar_index + 5, internalHigh, 
+             color=color.new(internalColor, 50), 
+             width=1, 
+             style=line.style_dotted)
+
+if showInternalStructure and not na(internalLow)
+    label.new(bar_index - internalLength, internalLow, "iL", 
+              style=label.style_label_up, 
+              color=color.new(internalColor, 70), 
+              textcolor=internalColor, 
+              size=size.tiny)
+    line.new(bar_index - internalLength, internalLow, bar_index + 5, internalLow, 
+             color=color.new(internalColor, 50), 
+             width=1, 
+             style=line.style_dotted)
+
+// ─────────────────────── Internal Break Labels (A5) ───────────────────────────
+if showInternalBreaks and internalBullBreak
+    label.new(bar_index, high, "iBOS↑", 
+              style=label.style_label_down, 
+              color=color.new(internalColor, 70), 
+              textcolor=internalColor, 
+              size=size.tiny)
+
+if showInternalBreaks and internalBearBreak
+    label.new(bar_index, low, "iBOS↓", 
+              style=label.style_label_up, 
+              color=color.new(internalColor, 70), 
+              textcolor=internalColor, 
+              size=size.tiny)
+
+// Trap warnings
+if showTrapWarnings and internalBullBreak
+    label.new(bar_index, high + atrValue * 0.2, "⚠️ TRAP?", 
+              style=label.style_label_down, 
+              color=color.new(color.orange, 50), 
+              textcolor=color.orange, 
+              size=size.tiny)
+
+if showTrapWarnings and internalBearBreak
+    label.new(bar_index, low - atrValue * 0.2, "⚠️ TRAP?", 
+              style=label.style_label_up, 
+              color=color.new(color.orange, 50), 
+              textcolor=color.orange, 
+              size=size.tiny)
+
+// ─────────────────────── Zig-Zag Path (Array-Based) ───────────────────────────
+var array<float> zzPrices = array.new<float>()
+var array<int> zzBars = array.new<int>()
+var array<bool> zzIsHigh = array.new<bool>()
+
+if showZigZag
+    // Process swing HIGH
+    if not na(swingHigh)
+        currentHighBar = bar_index - swingLength
+        currentHighPrice = swingHigh
+        
+        if array.size(zzIsHigh) > 0 and array.get(zzIsHigh, array.size(zzIsHigh) - 1) == true
+            lastPrice = array.get(zzPrices, array.size(zzPrices) - 1)
+            if currentHighPrice > lastPrice
+                array.set(zzPrices, array.size(zzPrices) - 1, currentHighPrice)
+                array.set(zzBars, array.size(zzBars) - 1, currentHighBar)
+                
+                if array.size(zigZagLines) > 0
+                    lastLine = array.pop(zigZagLines)
+                    line.delete(lastLine)
+                    
+                    if array.size(zzPrices) >= 2
+                        prevPrice = array.get(zzPrices, array.size(zzPrices) - 2)
+                        prevBar = array.get(zzBars, array.size(zzBars) - 2)
+                        zigColor = structureState == 1 ? bullColor : (structureState == -1 ? bearColor : neutralColor)
+                        newLine = line.new(prevBar, prevPrice, currentHighBar, currentHighPrice, 
+                                 color=zigColor, width=2, style=line.style_solid)
+                        array.push(zigZagLines, newLine)
+        else
+            array.push(zzPrices, currentHighPrice)
+            array.push(zzBars, currentHighBar)
+            array.push(zzIsHigh, true)
+            
+            if array.size(zzPrices) >= 2
+                prevPrice = array.get(zzPrices, array.size(zzPrices) - 2)
+                prevBar = array.get(zzBars, array.size(zzBars) - 2)
+                zigColor = structureState == 1 ? bullColor : (structureState == -1 ? bearColor : neutralColor)
+                newLine = line.new(prevBar, prevPrice, currentHighBar, currentHighPrice, 
+                         color=zigColor, width=2, style=line.style_solid)
+                array.push(zigZagLines, newLine)
+                
+                if array.size(zigZagLines) > maxZigZagLines
+                    oldLine = array.shift(zigZagLines)
+                    line.delete(oldLine)
+            
+            if array.size(zzPrices) > maxZigZagLines + 1
+                array.shift(zzPrices)
+                array.shift(zzBars)
+                array.shift(zzIsHigh)
+    
+    // Process swing LOW
+    if not na(swingLow)
+        currentLowBar = bar_index - swingLength
+        currentLowPrice = swingLow
+        
+        if array.size(zzIsHigh) > 0 and array.get(zzIsHigh, array.size(zzIsHigh) - 1) == false
+            lastPrice = array.get(zzPrices, array.size(zzPrices) - 1)
+            if currentLowPrice < lastPrice
+                array.set(zzPrices, array.size(zzPrices) - 1, currentLowPrice)
+                array.set(zzBars, array.size(zzBars) - 1, currentLowBar)
+                
+                if array.size(zigZagLines) > 0
+                    lastLine = array.pop(zigZagLines)
+                    line.delete(lastLine)
+                    
+                    if array.size(zzPrices) >= 2
+                        prevPrice = array.get(zzPrices, array.size(zzPrices) - 2)
+                        prevBar = array.get(zzBars, array.size(zzBars) - 2)
+                        zigColor = structureState == 1 ? bullColor : (structureState == -1 ? bearColor : neutralColor)
+                        newLine = line.new(prevBar, prevPrice, currentLowBar, currentLowPrice, 
+                                 color=zigColor, width=2, style=line.style_solid)
+                        array.push(zigZagLines, newLine)
+        else
+            array.push(zzPrices, currentLowPrice)
+            array.push(zzBars, currentLowBar)
+            array.push(zzIsHigh, false)
+            
+            if array.size(zzPrices) >= 2
+                prevPrice = array.get(zzPrices, array.size(zzPrices) - 2)
+                prevBar = array.get(zzBars, array.size(zzBars) - 2)
+                zigColor = structureState == 1 ? bullColor : (structureState == -1 ? bearColor : neutralColor)
+                newLine = line.new(prevBar, prevPrice, currentLowBar, currentLowPrice, 
+                         color=zigColor, width=2, style=line.style_solid)
+                array.push(zigZagLines, newLine)
+                
+                if array.size(zigZagLines) > maxZigZagLines
+                    oldLine = array.shift(zigZagLines)
+                    line.delete(oldLine)
+            
+            if array.size(zzPrices) > maxZigZagLines + 1
+                array.shift(zzPrices)
+                array.shift(zzBars)
+                array.shift(zzIsHigh)
+
+// ─────────────────────── Developing Swing Level Lines ─────────────────────────
+// These show the active levels that need to break for BOS - visible BEFORE confirmation
+var line developingHighLine = na
+var line developingLowLine = na
+var label developingHighLabel = na
+var label developingLowLabel = na
+
+if showDevelopingLevels
+    // Update developing high line (level to break for bullish BOS)
+    if not na(confirmedSwingHigh) and not na(confirmedHighBar)
+        // Delete old line and recreate (to extend it)
+        if not na(developingHighLine)
+            line.delete(developingHighLine)
+        if not na(developingHighLabel)
+            label.delete(developingHighLabel)
+        
+        // Only show if not already broken
+        if close <= confirmedSwingHigh
+            developingHighLine := line.new(confirmedHighBar, confirmedSwingHigh, bar_index + 10, confirmedSwingHigh,
+                                           color=color.new(bearColor, 50), width=1, style=line.style_dashed)
+            developingHighLabel := label.new(bar_index + 10, confirmedSwingHigh, "SH", 
+                                             style=label.style_label_left,
+                                             color=color.new(bearColor, 85),
+                                             textcolor=bearColor,
+                                             size=size.tiny)
+    
+    // Update developing low line (level to break for bearish BOS)
+    if not na(confirmedSwingLow) and not na(confirmedLowBar)
+        // Delete old line and recreate (to extend it)
+        if not na(developingLowLine)
+            line.delete(developingLowLine)
+        if not na(developingLowLabel)
+            label.delete(developingLowLabel)
+        
+        // Only show if not already broken
+        if close >= confirmedSwingLow
+            developingLowLine := line.new(confirmedLowBar, confirmedSwingLow, bar_index + 10, confirmedSwingLow,
+                                          color=color.new(bullColor, 50), width=1, style=line.style_dashed)
+            developingLowLabel := label.new(bar_index + 10, confirmedSwingLow, "SL",
+                                            style=label.style_label_left,
+                                            color=color.new(bullColor, 85),
+                                            textcolor=bullColor,
+                                            size=size.tiny)
+
+// ─────────────────────── BOS Lines with Strength Grading ──────────────────────
+// When BOS confirms, draw the solid confirmation line and label
+if bullishBOS and not na(confirmedHighBar)
+    // Remove the developing line since it's now confirmed
+    if not na(developingHighLine)
+        line.delete(developingHighLine)
+        developingHighLine := na
+    if not na(developingHighLabel)
+        label.delete(developingHighLabel)
+        developingHighLabel := na
+    
+    // Determine color based on strength - bullish uses green tones
+    var color bosColor = bullColor
+    if useDisplacementGrading
+        bosColor := bosIsStrong ? color.rgb(0, 255, 100) : color.rgb(0, 180, 80)  // Bright green / dimmer green
+    else
+        bosColor := bullColor
+    
+    strengthSuffix = ""
+    if useDisplacementGrading and showStrengthLabels
+        strengthSuffix := bosIsStrong ? " (S)" : " (W)"
+    
+    line.new(confirmedHighBar, confirmedSwingHigh, bar_index, confirmedSwingHigh, 
+             color=bosColor, width=2, style=line.style_solid)
+    label.new(bar_index, confirmedSwingHigh, "BOS ↑" + strengthSuffix, 
+              style=label.style_label_down, 
+              color=color.new(bosColor, 80), 
+              textcolor=bosColor, 
+              size=size.small)
+
+if bearishBOS and not na(confirmedLowBar)
+    // Remove the developing line since it's now confirmed
+    if not na(developingLowLine)
+        line.delete(developingLowLine)
+        developingLowLine := na
+    if not na(developingLowLabel)
+        label.delete(developingLowLabel)
+        developingLowLabel := na
+    
+    // Determine color based on strength - bearish uses red tones
+    var color bosColor = bearColor
+    if useDisplacementGrading
+        bosColor := bosIsStrong ? color.rgb(255, 50, 50) : color.rgb(200, 80, 80)  // Bright red / dimmer red
+    else
+        bosColor := bearColor
+    
+    strengthSuffix = ""
+    if useDisplacementGrading and showStrengthLabels
+        strengthSuffix := bosIsStrong ? " (S)" : " (W)"
+    
+    line.new(confirmedLowBar, confirmedSwingLow, bar_index, confirmedSwingLow, 
+             color=bosColor, width=2, style=line.style_solid)
+    label.new(bar_index, confirmedSwingLow, "BOS ↓" + strengthSuffix, 
+              style=label.style_label_up, 
+              color=color.new(bosColor, 80), 
+              textcolor=bosColor, 
+              size=size.small)
+
+// ─────────────────────── Liquidity Sweeps ──────────────────────────────────────
+if bullSweep and not na(confirmedHighBar)
+    line.new(confirmedHighBar, confirmedSwingHigh, bar_index, confirmedSwingHigh, 
+             color=bearColor, width=1, style=line.style_dotted)
+    label.new(bar_index, high, "Sweep", 
+              style=label.style_xcross, 
+              color=color.new(bearColor, 80), 
+              textcolor=bearColor, 
+              size=size.tiny)
+
+if bearSweep and not na(confirmedLowBar)
+    line.new(confirmedLowBar, confirmedSwingLow, bar_index, confirmedSwingLow, 
+             color=bullColor, width=1, style=line.style_dotted)
+    label.new(bar_index, low, "Sweep", 
+              style=label.style_xcross, 
+              color=color.new(bullColor, 80), 
+              textcolor=bullColor, 
+              size=size.tiny)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░░░ SUPPLY/DEMAND ZONES (A7) ░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Zone colors
+demandZoneColor = color.new(bullColor, 85)
+supplyZoneColor = color.new(bearColor, 85)
+
+// Create Demand Zone on Bullish BOS at the SWING LOW that preceded the move
+createDemandZone = showZones and bullishBOS and not na(confirmedSwingLow) and not na(confirmedLowBar)
+if zoneDirectionFilter
+    createDemandZone := createDemandZone and structureState == 1
+
+if createDemandZone
+    hasFVG = detectBullishFVG(5)
+    
+    if hasFVG or not requireFVG
+        // Use confirmed swing low as the zone level (the actual pivot)
+        zoneTop = confirmedSwingLow + atrValue * 0.1
+        zoneBottom = confirmedSwingLow - atrValue * 0.4
+        
+        // Check if a demand zone already exists at this level (within 0.5 ATR)
+        zoneExists = false
+        if array.size(activeZones) > 0
+            for i = 0 to array.size(activeZones) - 1
+                existingZone = array.get(activeZones, i)
+                if not existingZone.isSupply
+                    // Check if zones overlap
+                    if math.abs(existingZone.top - zoneTop) < atrValue * 0.5
+                        zoneExists := true
+                        break
+        
+        if not zoneExists
+            zoneBox = box.new(confirmedLowBar, zoneTop, bar_index + zoneExtendBars, zoneBottom,
+                              bgcolor=demandZoneColor, 
+                              border_color=bullColor,
+                              border_width=1)
+            
+            zoneLbl = label.new(confirmedLowBar, zoneBottom, "DEMAND", 
+                               style=label.style_label_up,
+                               color=color.new(bullColor, 90),
+                               textcolor=bullColor,
+                               size=size.tiny)
+            
+            newZone = Zone.new(zoneBox, zoneLbl, zoneTop, zoneBottom, confirmedLowBar, false, false, false, hasFVG)
+            array.push(activeZones, newZone)
+            
+            if array.size(activeZones) > maxZones
+                oldZone = array.shift(activeZones)
+                box.delete(oldZone.zoneBox)
+                label.delete(oldZone.zoneLabel)
+
+// Create Supply Zone on Bearish BOS at the SWING HIGH that preceded the move
+createSupplyZone = showZones and bearishBOS and not na(confirmedSwingHigh) and not na(confirmedHighBar)
+if zoneDirectionFilter
+    createSupplyZone := createSupplyZone and structureState == -1
+
+if createSupplyZone
+    hasFVG = detectBearishFVG(5)
+    
+    if hasFVG or not requireFVG
+        // Use confirmed swing high as the zone level (the actual pivot)
+        zoneBottom = confirmedSwingHigh - atrValue * 0.1
+        zoneTop = confirmedSwingHigh + atrValue * 0.4
+        
+        // Check if a supply zone already exists at this level (within 0.5 ATR)
+        zoneExists = false
+        if array.size(activeZones) > 0
+            for i = 0 to array.size(activeZones) - 1
+                existingZone = array.get(activeZones, i)
+                if existingZone.isSupply
+                    // Check if zones overlap
+                    if math.abs(existingZone.bottom - zoneBottom) < atrValue * 0.5
+                        zoneExists := true
+                        break
+        
+        if not zoneExists
+            zoneBox = box.new(confirmedHighBar, zoneTop, bar_index + zoneExtendBars, zoneBottom,
+                              bgcolor=supplyZoneColor, 
+                              border_color=bearColor,
+                              border_width=1)
+            
+            zoneLbl = label.new(confirmedHighBar, zoneTop, "SUPPLY", 
+                               style=label.style_label_down,
+                               color=color.new(bearColor, 90),
+                               textcolor=bearColor,
+                               size=size.tiny)
+            
+            newZone = Zone.new(zoneBox, zoneLbl, zoneTop, zoneBottom, confirmedHighBar, true, false, false, hasFVG)
+            array.push(activeZones, newZone)
+            
+            if array.size(activeZones) > maxZones
+                oldZone = array.shift(activeZones)
+                box.delete(oldZone.zoneBox)
+                label.delete(oldZone.zoneLabel)
+
+// Update zone status
+if array.size(activeZones) > 0
+    for i = array.size(activeZones) - 1 to 0
+        zone = array.get(activeZones, i)
+        
+        // Check if zone is touched
+        if not zone.tested
+            if (zone.isSupply and high >= zone.bottom) or (not zone.isSupply and low <= zone.top)
+                zone.tested := true
+                box.set_bgcolor(zone.zoneBox, color.new(color.yellow, 85))
+        
+        // Check if zone is invalidated
+        if not zone.invalidated
+            if (zone.isSupply and close > zone.top) or (not zone.isSupply and close < zone.bottom)
+                zone.invalidated := true
+                if removeMitigated
+                    box.delete(zone.zoneBox)
+                    label.delete(zone.zoneLabel)
+                    array.remove(activeZones, i)
+                else
+                    box.set_bgcolor(zone.zoneBox, color.new(color.gray, 90))
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░ PULLBACK ENTRY (FIB GOLDEN ZONE) ░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Track swing points for fib calculation
+var float bosSwingLow = na      // Origin for bullish fib (0%)
+var float bosSwingHigh = na     // Extreme for bullish fib (100%)
+var int bosSwingLowBar = na
+var int bosSwingHighBar = na
+
+// Pullback zone visualization objects
+var box goldenZoneBox = na
+var box deepZoneBox = na
+var line fib0Line = na
+var line fib50Line = na
+var line fib618Line = na
+var line fib786Line = na
+var line fib100Line = na
+var label fib0Label = na
+var label fib50Label = na
+var label fib618Label = na
+var label fib786Label = na
+var label fib100Label = na
+
+// Pullback zone state
+var float currentFibOrigin = na
+var float currentFibExtreme = na
+var float currentFib50 = na
+var float currentFib618 = na
+var float currentFib786 = na
+var int pullbackDirection = 0    // 1 = bullish, -1 = bearish
+var bool inGoldenZone = false
+var bool inDeepZone = false
+var bool pullbackConfirmed = false
+var int pullbackStartBar = na
+
+// Internal structure tracking for confirmation
+var float internalSwingHigh = na
+var float internalSwingLow = na
+
+// Detect internal structure for confirmation
+miniSwingHigh = ta.pivothigh(high, internalLength, internalLength)
+miniSwingLow = ta.pivotlow(low, internalLength, internalLength)
+
+if not na(miniSwingHigh)
+    internalSwingHigh := miniSwingHigh
+if not na(miniSwingLow)
+    internalSwingLow := miniSwingLow
+
+// Function to clean up pullback zone visuals
+cleanupPullbackZone() =>
+    if not na(goldenZoneBox)
+        box.delete(goldenZoneBox)
+    if not na(deepZoneBox)
+        box.delete(deepZoneBox)
+    if not na(fib0Line)
+        line.delete(fib0Line)
+    if not na(fib50Line)
+        line.delete(fib50Line)
+    if not na(fib618Line)
+        line.delete(fib618Line)
+    if not na(fib786Line)
+        line.delete(fib786Line)
+    if not na(fib100Line)
+        line.delete(fib100Line)
+    if not na(fib0Label)
+        label.delete(fib0Label)
+    if not na(fib50Label)
+        label.delete(fib50Label)
+    if not na(fib618Label)
+        label.delete(fib618Label)
+    if not na(fib786Label)
+        label.delete(fib786Label)
+    if not na(fib100Label)
+        label.delete(fib100Label)
+    true
+
+// Create new pullback zone on BOS
+if showPullbackZone
+    // Bullish BOS - set up for bullish pullback entry
+    if bullishBOS and not na(confirmedSwingLow) and not na(confirmedSwingHigh)
+        // Clean up old zone
+        cleanupPullbackZone()
+        
+        // Set fib points: origin = swing low, extreme = high that triggered BOS
+        currentFibOrigin := confirmedSwingLow
+        currentFibExtreme := high  // Current high that broke structure
+        pullbackDirection := 1
+        pullbackStartBar := bar_index
+        pullbackConfirmed := false
+        inGoldenZone := false
+        inDeepZone := false
+        
+        // Calculate fib levels (for bullish: retracement goes DOWN from high to low)
+        fibRange = currentFibExtreme - currentFibOrigin
+        currentFib50 := currentFibExtreme - (fibRange * fibUpperLevel)
+        currentFib618 := currentFibExtreme - (fibRange * fibLowerLevel)
+        currentFib786 := currentFibExtreme - (fibRange * fibDeepLevel)
+        
+        // Reset internal swing for confirmation tracking
+        internalSwingHigh := na
+    
+    // Bearish BOS - set up for bearish pullback entry
+    if bearishBOS and not na(confirmedSwingHigh) and not na(confirmedSwingLow)
+        // Clean up old zone
+        cleanupPullbackZone()
+        
+        // Set fib points: origin = swing high, extreme = low that triggered BOS
+        currentFibOrigin := confirmedSwingHigh
+        currentFibExtreme := low  // Current low that broke structure
+        pullbackDirection := -1
+        pullbackStartBar := bar_index
+        pullbackConfirmed := false
+        inGoldenZone := false
+        inDeepZone := false
+        
+        // Calculate fib levels (for bearish: retracement goes UP from low to high)
+        fibRange = currentFibOrigin - currentFibExtreme
+        currentFib50 := currentFibExtreme + (fibRange * fibUpperLevel)
+        currentFib618 := currentFibExtreme + (fibRange * fibLowerLevel)
+        currentFib786 := currentFibExtreme + (fibRange * fibDeepLevel)
+        
+        // Reset internal swing for confirmation tracking
+        internalSwingLow := na
+
+// Update and draw pullback zone
+if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
+    // Check if structure invalidated (protected level broken)
+    zoneInvalidated = false
+    if pullbackDirection == 1 and structureState != 1
+        zoneInvalidated := true
+    if pullbackDirection == -1 and structureState != -1
+        zoneInvalidated := true
+    
+    // Check if pullback went too deep (below origin for bullish, above origin for bearish)
+    if pullbackDirection == 1 and close < currentFibOrigin
+        zoneInvalidated := true
+    if pullbackDirection == -1 and close > currentFibOrigin
+        zoneInvalidated := true
+    
+    if zoneInvalidated
+        cleanupPullbackZone()
+        pullbackDirection := 0
+        currentFibOrigin := na
+    else
+        // Check if price is in golden zone
+        if pullbackDirection == 1
+            inGoldenZone := low <= currentFib50 and close >= currentFib618
+            inDeepZone := low <= currentFib618 and close >= currentFib786
+        else
+            inGoldenZone := high >= currentFib50 and close <= currentFib618
+            inDeepZone := high >= currentFib618 and close <= currentFib786
+        
+        // Check for confirmation
+        displacementConfirmed = false
+        internalBOSConfirmed = false
+        
+        // Displacement candle check
+        candleBody = math.abs(close - open)
+        if pullbackDirection == 1
+            displacementConfirmed := close > open and candleBody > (atrValue * displacementATR)
+        else
+            displacementConfirmed := close < open and candleBody > (atrValue * displacementATR)
+        
+        // Internal BOS check
+        if pullbackDirection == 1 and not na(internalSwingHigh)
+            internalBOSConfirmed := close > internalSwingHigh
+        if pullbackDirection == -1 and not na(internalSwingLow)
+            internalBOSConfirmed := close < internalSwingLow
+        
+        // Determine if confirmation triggered based on settings
+        confirmationMet = false
+        if confirmationType == "None"
+            confirmationMet := inGoldenZone or inDeepZone
+        else if confirmationType == "Displacement Candle"
+            confirmationMet := (inGoldenZone or inDeepZone) and displacementConfirmed
+        else if confirmationType == "Internal BOS"
+            confirmationMet := (inGoldenZone or inDeepZone) and internalBOSConfirmed
+        else if confirmationType == "Both"
+            confirmationMet := (inGoldenZone or inDeepZone) and displacementConfirmed and internalBOSConfirmed
+        
+        // Draw/update visuals
+        zoneRight = bar_index + 15
+        fibLineRight = bar_index + 20
+        
+        // Clean up old drawings first
+        if not na(goldenZoneBox)
+            box.delete(goldenZoneBox)
+        if not na(deepZoneBox)
+            box.delete(deepZoneBox)
+        if not na(fib0Line)
+            line.delete(fib0Line)
+        if not na(fib50Line)
+            line.delete(fib50Line)
+        if not na(fib618Line)
+            line.delete(fib618Line)
+        if not na(fib786Line)
+            line.delete(fib786Line)
+        if not na(fib100Line)
+            line.delete(fib100Line)
+        if not na(fib0Label)
+            label.delete(fib0Label)
+        if not na(fib50Label)
+            label.delete(fib50Label)
+        if not na(fib618Label)
+            label.delete(fib618Label)
+        if not na(fib786Label)
+            label.delete(fib786Label)
+        if not na(fib100Label)
+            label.delete(fib100Label)
+        
+        // Determine zone colors based on direction and state
+        var color currentGoldenColor = na
+        var color borderColor = na
+        
+        if pullbackDirection == 1
+            currentGoldenColor := goldenZoneColorBull
+            borderColor := color.rgb(0, 200, 100)  // Green border for bullish
+            if inGoldenZone
+                currentGoldenColor := color.new(color.lime, 70)  // Highlight when price is in zone
+        else
+            currentGoldenColor := goldenZoneColorBear
+            borderColor := color.rgb(255, 140, 0)  // Orange border for bearish
+            if inGoldenZone
+                currentGoldenColor := color.new(color.orange, 70)  // Highlight when price is in zone
+        
+        // Draw golden zone box
+        if pullbackDirection == 1
+            goldenZoneBox := box.new(pullbackStartBar, currentFib50, zoneRight, currentFib618,
+                                     bgcolor=currentGoldenColor,
+                                     border_color=borderColor,
+                                     border_width=1)
+        else
+            goldenZoneBox := box.new(pullbackStartBar, currentFib618, zoneRight, currentFib50,
+                                     bgcolor=currentGoldenColor,
+                                     border_color=borderColor,
+                                     border_width=1)
+        
+        // Draw deep zone if enabled
+        if showDeepZone
+            if pullbackDirection == 1
+                deepZoneBox := box.new(pullbackStartBar, currentFib618, zoneRight, currentFib786,
+                                       bgcolor=deepZoneColor,
+                                       border_color=color.new(color.green, 60),
+                                       border_width=1,
+                                       border_style=line.style_dotted)
+            else
+                deepZoneBox := box.new(pullbackStartBar, currentFib786, zoneRight, currentFib618,
+                                       bgcolor=deepZoneColor,
+                                       border_color=color.new(color.red, 60),
+                                       border_width=1,
+                                       border_style=line.style_dotted)
+        
+        // Draw fib lines if enabled
+        if showFibLines
+            fibColor = pullbackDirection == 1 ? bullColor : bearColor
+            
+            fib0Line := line.new(pullbackStartBar, currentFibOrigin, fibLineRight, currentFibOrigin,
+                                 color=color.new(fibColor, 60), width=1, style=line.style_dotted)
+            fib50Line := line.new(pullbackStartBar, currentFib50, fibLineRight, currentFib50,
+                                  color=color.new(color.yellow, 50), width=1, style=line.style_dashed)
+            fib618Line := line.new(pullbackStartBar, currentFib618, fibLineRight, currentFib618,
+                                   color=color.new(color.orange, 50), width=1, style=line.style_dashed)
+            fib786Line := line.new(pullbackStartBar, currentFib786, fibLineRight, currentFib786,
+                                   color=color.new(color.red, 60), width=1, style=line.style_dotted)
+            fib100Line := line.new(pullbackStartBar, currentFibExtreme, fibLineRight, currentFibExtreme,
+                                   color=color.new(fibColor, 60), width=1, style=line.style_dotted)
+            
+            // Labels
+            fib0Label := label.new(fibLineRight, currentFibOrigin, "0%",
+                                   style=label.style_label_left, color=color.new(fibColor, 90),
+                                   textcolor=fibColor, size=size.tiny)
+            fib50Label := label.new(fibLineRight, currentFib50, str.tostring(fibUpperLevel * 100, "#.#") + "%",
+                                    style=label.style_label_left, color=color.new(color.yellow, 90),
+                                    textcolor=color.yellow, size=size.tiny)
+            fib618Label := label.new(fibLineRight, currentFib618, str.tostring(fibLowerLevel * 100, "#.#") + "%",
+                                     style=label.style_label_left, color=color.new(color.orange, 90),
+                                     textcolor=color.orange, size=size.tiny)
+            fib786Label := label.new(fibLineRight, currentFib786, str.tostring(fibDeepLevel * 100, "#.#") + "%",
+                                     style=label.style_label_left, color=color.new(color.red, 90),
+                                     textcolor=color.red, size=size.tiny)
+            fib100Label := label.new(fibLineRight, currentFibExtreme, "100%",
+                                     style=label.style_label_left, color=color.new(fibColor, 90),
+                                     textcolor=fibColor, size=size.tiny)
+        
+        // Show entry signal when confirmation triggers
+        if showConfirmationSignal and confirmationMet and not pullbackConfirmed
+            pullbackConfirmed := true
+            signalColor = pullbackDirection == 1 ? bullColor : bearColor
+            signalText = pullbackDirection == 1 ? "▲ ENTRY" : "▼ ENTRY"
+            signalStyle = pullbackDirection == 1 ? label.style_label_up : label.style_label_down
+            signalY = pullbackDirection == 1 ? low - atrValue * 0.3 : high + atrValue * 0.3
+            
+            label.new(bar_index, signalY, signalText,
+                      style=signalStyle,
+                      color=signalColor,
+                      textcolor=color.white,
+                      size=size.normal)
+
+// Confirmation alert conditions
+pullbackEntryLong = showPullbackZone and pullbackDirection == 1 and (inGoldenZone or inDeepZone) and not pullbackConfirmed
+pullbackEntryShort = showPullbackZone and pullbackDirection == -1 and (inGoldenZone or inDeepZone) and not pullbackConfirmed
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░ DASHBOARD ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+if showDashboard
+    var string dashX = dashboardPosition == "Top Left" or dashboardPosition == "Bottom Left" ? position.top_left : position.top_right
+    var string dashY = dashboardPosition == "Bottom Left" or dashboardPosition == "Bottom Right" ? position.bottom_left : dashX
+    
+    // Compact table - 7 rows instead of 11
+    var table dashboard = table.new(dashY, 2, 7, border_width=1)
+    
+    // Structure state text
+    stateText = structureState == 1 ? "BULL" : (structureState == -1 ? "BEAR" : "RANGE")
+    stateColor = structureState == 1 ? bullColor : (structureState == -1 ? bearColor : neutralColor)
+    
+    // BOS strength
+    bosStrengthText = lastBOSStrong ? "S" : "W"
+    bosStrengthColor = lastBOSStrong ? strongBOSColor : weakBOSColor
+    
+    // Protected level display (shortened)
+    var string protectedText = "-"
+    if structureState == 1
+        protectedText := str.tostring(protectedLow, format.mintick)
+    else if structureState == -1
+        protectedText := str.tostring(protectedHigh, format.mintick)
+    else
+        protectedText := "-"
+    
+    // Pullback Zone Status (shortened)
+    var string pullbackStatus = "-"
+    var color pullbackStatusColor = color.gray
+    if pullbackDirection == 1
+        if inGoldenZone
+            pullbackStatus := "ZONE▲"
+            pullbackStatusColor := color.lime
+        else if pullbackConfirmed
+            pullbackStatus := "GO▲"
+            pullbackStatusColor := bullColor
+        else
+            pullbackStatus := "WAIT▲"
+            pullbackStatusColor := color.yellow
+    else if pullbackDirection == -1
+        if inGoldenZone
+            pullbackStatus := "ZONE▼"
+            pullbackStatusColor := color.lime
+        else if pullbackConfirmed
+            pullbackStatus := "GO▼"
+            pullbackStatusColor := bearColor
+        else
+            pullbackStatus := "WAIT▼"
+            pullbackStatusColor := color.yellow
+    else
+        pullbackStatus := "-"
+        pullbackStatusColor := color.gray
+    
+    // Row 0: Structure state (header)
+    table.cell(dashboard, 0, 0, stateText, text_color=stateColor, bgcolor=color.new(stateColor, 85), text_size=size.small)
+    table.cell(dashboard, 1, 0, timeframe.period + " | " + str.tostring(swingLength), text_color=color.orange, bgcolor=color.new(color.gray, 85), text_size=size.small)
+    
+    // Row 1: Swing levels combined
+    table.cell(dashboard, 0, 1, "H " + str.tostring(confirmedSwingHigh, format.mintick), text_color=bearColor, text_size=size.tiny)
+    table.cell(dashboard, 1, 1, "L " + str.tostring(confirmedSwingLow, format.mintick), text_color=bullColor, text_size=size.tiny)
+    
+    // Row 2: Protected level
+    table.cell(dashboard, 0, 2, "Prot", text_color=color.gray, text_size=size.tiny)
+    table.cell(dashboard, 1, 2, protectedText, text_color=stateColor, text_size=size.tiny)
+    
+    // Row 3: BOS strength + bars since
+    table.cell(dashboard, 0, 3, "BOS", text_color=color.gray, text_size=size.tiny)
+    table.cell(dashboard, 1, 3, bosStrengthText + " | " + str.tostring(barsSinceImpulse) + "b", text_color=bosStrengthColor, text_size=size.tiny)
+    
+    // Row 4: Active zones
+    activeZoneCount = array.size(activeZones)
+    table.cell(dashboard, 0, 4, "S/D", text_color=color.gray, text_size=size.tiny)
+    table.cell(dashboard, 1, 4, str.tostring(activeZoneCount), text_color=color.white, text_size=size.tiny)
+    
+    // Row 5: Pullback status
+    table.cell(dashboard, 0, 5, "Entry", text_color=color.gray, text_size=size.tiny)
+    table.cell(dashboard, 1, 5, pullbackStatus, text_color=pullbackStatusColor, text_size=size.tiny)
+    
+    // Row 6: Auto-TF indicator (tiny)
+    autoTFText = useAutoTF ? "Auto" : "Manual"
+    table.cell(dashboard, 0, 6, "TF", text_color=color.gray, text_size=size.tiny)
+    table.cell(dashboard, 1, 6, autoTFText, text_color=useAutoTF ? color.green : color.gray, text_size=size.tiny)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ALERTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+// BOS Alerts (with strength)
+alertcondition(bullishBOS and bosIsStrong, title="Strong Bullish BOS", message="Strong Bullish Break of Structure on {{ticker}} {{interval}}")
+alertcondition(bullishBOS and not bosIsStrong, title="Weak Bullish BOS", message="Weak Bullish Break of Structure on {{ticker}} {{interval}}")
+alertcondition(bearishBOS and bosIsStrong, title="Strong Bearish BOS", message="Strong Bearish Break of Structure on {{ticker}} {{interval}}")
+alertcondition(bearishBOS and not bosIsStrong, title="Weak Bearish BOS", message="Weak Bearish Break of Structure on {{ticker}} {{interval}}")
+
+// Standard BOS Alerts
+alertcondition(bullishBOS, title="Bullish BOS", message="Bullish Break of Structure detected on {{ticker}} {{interval}}")
+alertcondition(bearishBOS, title="Bearish BOS", message="Bearish Break of Structure detected on {{ticker}} {{interval}}")
+
+// Structure Change Alerts
+structureFlipped = structureState != prevStructureState and prevStructureState != 0
+alertcondition(structureFlipped and structureState == 1, title="Structure Flip Bullish", message="Structure flipped from Bearish to Bullish on {{ticker}} {{interval}}")
+alertcondition(structureFlipped and structureState == -1, title="Structure Flip Bearish", message="Structure flipped from Bullish to Bearish on {{ticker}} {{interval}}")
+alertcondition(structureFlipped and structureState == 0, title="Entered Consolidation", message="Market entered consolidation on {{ticker}} {{interval}}")
+
+// Protected Level Alerts
+alertcondition(protectedLevelBroken and structureState == 1, title="Protected Low Broken", message="Protected Low broken - structure shift on {{ticker}} {{interval}}")
+alertcondition(protectedLevelBroken and structureState == -1, title="Protected High Broken", message="Protected High broken - structure shift on {{ticker}} {{interval}}")
+
+// Internal Break / Trap Alerts
+alertcondition(internalBullBreak, title="Internal Bull Break (Trap Warning)", message="Internal bullish break detected - possible trap on {{ticker}} {{interval}}")
+alertcondition(internalBearBreak, title="Internal Bear Break (Trap Warning)", message="Internal bearish break detected - possible trap on {{ticker}} {{interval}}")
+
+// Liquidity Sweep Alerts
+alertcondition(bullSweep, title="Bullish Sweep", message="Liquidity Sweep above swing high on {{ticker}} {{interval}}")
+alertcondition(bearSweep, title="Bearish Sweep", message="Liquidity Sweep below swing low on {{ticker}} {{interval}}")
+
+// Pullback Entry Alerts
+alertcondition(pullbackEntryLong, title="Pullback Entry Long", message="Price in golden zone for LONG entry on {{ticker}} {{interval}}")
+alertcondition(pullbackEntryShort, title="Pullback Entry Short", message="Price in golden zone for SHORT entry on {{ticker}} {{interval}}")
+alertcondition(pullbackEntryLong and pullbackConfirmed, title="Confirmed Long Entry", message="CONFIRMED Long entry signal in golden zone on {{ticker}} {{interval}}")
+alertcondition(pullbackEntryShort and pullbackConfirmed, title="Confirmed Short Entry", message="CONFIRMED Short entry signal in golden zone on {{ticker}} {{interval}}")
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ PLOTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Background color based on structure (subtle)
+bgColor = structureState == 1 ? color.new(bullColor, 97) : (structureState == -1 ? color.new(bearColor, 97) : color.new(neutralColor, 98))
+bgcolor(bgColor, title="Structure Background")
+
+// Plot swing levels as reference
+plot(confirmedSwingHigh, "Swing High", color=color.new(bearColor, 70), style=plot.style_circles, linewidth=1, display=display.none)
+plot(confirmedSwingLow, "Swing Low", color=color.new(bullColor, 70), style=plot.style_circles, linewidth=1, display=display.none)
+
+// Plot protected levels for external use
+plot(useProtectedLevels and structureState == 1 ? protectedLow : na, "Protected Low", color=color.new(bullColor, 50), style=plot.style_linebr, linewidth=1, display=display.none)
+plot(useProtectedLevels and structureState == -1 ? protectedHigh : na, "Protected High", color=color.new(bearColor, 50), style=plot.style_linebr, linewidth=1, display=display.none)
+
+// Plot impulse range for external use
+plot(useInternalFilter ? impulseHigh : na, "Impulse High", color=color.new(color.purple, 70), style=plot.style_linebr, linewidth=1, display=display.none)
+plot(useInternalFilter ? impulseLow : na, "Impulse Low", color=color.new(color.purple, 70), style=plot.style_linebr, linewidth=1, display=display.none)
