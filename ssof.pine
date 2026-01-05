@@ -3,7 +3,7 @@
 // GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V5.3", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V5.4", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -1158,14 +1158,15 @@ cleanupPullbackZone() =>
 // Create new pullback zone on BOS
 if showPullbackZone
     // Bullish BOS - set up for bullish pullback entry
-    if bullishBOS and not na(confirmedSwingLow) and not na(confirmedSwingHigh)
+    if bullishBOS and not na(prevSwingLow) and not na(confirmedSwingHigh)
         // Clean up old zone
         cleanupPullbackZone()
 
-        // Set fib points: origin = swing low, extreme = highest high since swing low (true impulse)
-        currentFibOrigin := confirmedSwingLow
-        // Calculate highest high from swing low bar to current bar (true impulse measurement)
-        barsFromSwingLow = bar_index - confirmedLowBar
+        // Set fib points: origin = PREVIOUS swing low (the one BEFORE the high that broke)
+        // This is the swing low that started the bullish impulse
+        currentFibOrigin := prevSwingLow
+        // Calculate highest high from that origin swing low to current bar (true impulse measurement)
+        barsFromSwingLow = bar_index - prevLowBar
         currentFibExtreme := ta.highest(high, barsFromSwingLow + 1)
         pullbackDirection := 1
         pullbackStartBar := bar_index
@@ -1183,14 +1184,15 @@ if showPullbackZone
         internalSwingHigh := na
     
     // Bearish BOS - set up for bearish pullback entry
-    if bearishBOS and not na(confirmedSwingHigh) and not na(confirmedSwingLow)
+    if bearishBOS and not na(prevSwingHigh) and not na(confirmedSwingLow)
         // Clean up old zone
         cleanupPullbackZone()
 
-        // Set fib points: origin = swing high, extreme = lowest low since swing high (true impulse)
-        currentFibOrigin := confirmedSwingHigh
-        // Calculate lowest low from swing high bar to current bar (true impulse measurement)
-        barsFromSwingHigh = bar_index - confirmedHighBar
+        // Set fib points: origin = PREVIOUS swing high (the one BEFORE the low that broke)
+        // This is the swing high that started the bearish impulse
+        currentFibOrigin := prevSwingHigh
+        // Calculate lowest low from that origin swing high to current bar (true impulse measurement)
+        barsFromSwingHigh = bar_index - prevHighBar
         currentFibExtreme := ta.lowest(low, barsFromSwingHigh + 1)
         pullbackDirection := -1
         pullbackStartBar := bar_index
@@ -1229,8 +1231,8 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
     else
         // Dynamically update Fib extreme as price makes new highs/lows (until pullback starts)
         if pullbackDirection == 1
-            // Update to highest high since swing low (continues tracking new highs)
-            barsFromSwingLow = bar_index - confirmedLowBar
+            // Update to highest high since the origin swing low (continues tracking new highs)
+            barsFromSwingLow = bar_index - prevLowBar
             newHigh = ta.highest(high, barsFromSwingLow + 1)
             if newHigh > currentFibExtreme
                 currentFibExtreme := newHigh
@@ -1241,8 +1243,8 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
                 currentFib786 := currentFibExtreme - (fibRange * fibDeepLevel)
 
         if pullbackDirection == -1
-            // Update to lowest low since swing high (continues tracking new lows)
-            barsFromSwingHigh = bar_index - confirmedHighBar
+            // Update to lowest low since the origin swing high (continues tracking new lows)
+            barsFromSwingHigh = bar_index - prevHighBar
             newLow = ta.lowest(low, barsFromSwingHigh + 1)
             if newLow < currentFibExtreme
                 currentFibExtreme := newLow

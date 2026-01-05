@@ -2,6 +2,27 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [5.4] - 2026-01-05
+
+### Fixed
+- **Critical: Fibonacci now uses correct impulse origin**
+  - Bullish: Uses `prevSwingLow` (the swing low BEFORE the high that broke)
+  - Bearish: Uses `prevSwingHigh` (the swing high BEFORE the low that broke)
+  - V5.3 incorrectly used `confirmedSwingLow/High` (most recent swing, not impulse origin)
+
+### Why This Matters
+- **Correct:** When price breaks a swing high, the impulse started at the swing low that came BEFORE that high
+- **Previous versions** were using the wrong swing as the origin (most recent instead of impulse origin)
+- Golden zone now properly measures retracement of the actual impulse that created the BOS
+
+### Example
+- Swing Low #1 at 100 (impulse origin)
+- Price rallies to Swing High at 110
+- Swing Low #2 at 105 (pullback during rally)
+- Price breaks 110 (BOS)
+- **V5.3 wrong:** Measured from Low #2 (105) - most recent
+- **V5.4 correct:** Measures from Low #1 (100) - impulse origin
+
 ## [5.3] - 2026-01-05
 
 ### Changed
