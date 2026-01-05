@@ -2,6 +2,26 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [5.6] - 2026-01-05
+
+### Fixed
+- **Golden zone premature invalidation**
+  - Removed overly strict invalidation rule that deleted golden zone when price closed below Fibonacci origin
+  - Valid pullbacks can go to 0.786 or even 1.0 Fibonacci levels without invalidating the setup
+  - Golden zone now persists until structure actually flips (protected level broken)
+  - This allows deeper pullbacks to be recognized and traded
+
+### Why This Was Wrong
+Previous versions invalidated the golden zone if price closed even 1 tick below the swing low origin. This was too restrictive because:
+- Deep pullbacks (0.786, 1.0 fib) are valid entry opportunities
+- Price can temporarily dip below origin without breaking structure
+- Only structure flips (protected level breaks) should invalidate the zone
+
+### Now
+- Golden zone remains active during deep pullbacks
+- Only invalidates when structure state changes (bearish breaks protected low, or vice versa)
+- Allows traders to catch entries at deeper discount levels
+
 ## [5.5] - 2026-01-05
 
 ### Added

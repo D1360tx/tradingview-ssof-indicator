@@ -3,7 +3,7 @@
 // GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V5.5", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V5.6", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -1234,12 +1234,9 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
         zoneInvalidated := true
     if pullbackDirection == -1 and structureState != -1
         zoneInvalidated := true
-    
-    // Check if pullback went too deep (below origin for bullish, above origin for bearish)
-    if pullbackDirection == 1 and close < currentFibOrigin
-        zoneInvalidated := true
-    if pullbackDirection == -1 and close > currentFibOrigin
-        zoneInvalidated := true
+
+    // Note: Removed overly strict origin check - valid pullbacks can go to 0.786 or 1.0 fib
+    // Zone is only invalidated when structure flips (protected level broken above)
     
     if zoneInvalidated
         cleanupPullbackZone()
