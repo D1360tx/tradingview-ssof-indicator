@@ -2,6 +2,26 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [5.3] - 2026-01-05
+
+### Changed
+- **Dynamic Fibonacci updating until pullback begins**
+  - Fibonacci extreme now updates continuously as price makes new highs/lows
+  - Tracks the true impulse extreme even if price continues after BOS
+  - Updates stop once pullback begins (enters golden zone)
+  - V5.2 calculated Fib only at BOS moment (static)
+
+### How It Works
+- Bullish: 100% level updates to highest high as long as price keeps rallying
+- Bearish: 100% level updates to lowest low as long as price keeps falling
+- Golden zone adjusts dynamically to represent true impulse retracement
+- Once price enters golden zone, Fib levels freeze (pullback has begun)
+
+### Technical Details
+- On every bar, recalculates `ta.highest/ta.lowest` from swing to current bar
+- If new extreme found, updates `currentFibExtreme` and recalculates all fib levels
+- Ensures golden zone always measures retracement of the complete impulse move
+
 ## [5.2] - 2026-01-05
 
 ### Changed
