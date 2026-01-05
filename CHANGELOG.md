@@ -2,6 +2,42 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [5.5] - 2026-01-05
+
+### Added
+- **Fibonacci Origin Selection Toggle**
+  - New setting: "Use Protected Low/High for Fib Origin?" (default: OFF)
+  - Gives users choice between two Fibonacci calculation methods
+  - Default mode: Uses swing pivot approach (traditional, backward compatible)
+  - Protected mode: Uses absolute lowest/highest point in impulse (maximum accuracy)
+
+### How It Works
+**Default Mode (OFF) - Swing Pivot:**
+- Bullish: Uses `prevSwingLow` (the swing low before the high that broke)
+- Bearish: Uses `prevSwingHigh` (the swing high before the low that broke)
+- Traditional swing-based Fibonacci approach
+- Familiar to most traders
+
+**Protected Mode (ON) - Absolute Extreme:**
+- Bullish: Uses `protectedLow` (absolute lowest low in lookback range)
+- Bearish: Uses `protectedHigh` (absolute highest high in lookback range)
+- Captures true structural origin of the impulse
+- More accurate measurement of complete impulse range
+
+### Why This Matters
+When multiple swing lows exist at different levels before BOS, the swing pivot approach may not use the **lowest** swing low. Protected mode ensures Fibonacci measures from the true impulse origin.
+
+**Example:**
+- Swing Low #1 at 4309 (true impulse origin)
+- Swing Low #2 at 4370 (pullback during rally)
+- BOS triggers
+- **Default:** Fib from 4370 (recent swing)
+- **Protected:** Fib from 4309 (true origin) ✓
+
+### Changed
+- Dynamic Fib tracking now uses correct origin bar for both modes
+- Both bullish and bearish calculations support toggle
+
 ## [5.4] - 2026-01-05
 
 ### Fixed

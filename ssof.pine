@@ -3,7 +3,7 @@
 // GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V5.4", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V5.5", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -90,6 +90,7 @@ showDeepZone = input.bool(false, "Show Deep Discount Zone?", group=grpPullback, 
 goldenZoneColorBull = input.color(color.rgb(0, 200, 100, 80), "Bullish Golden Zone Color", group=grpPullback)
 goldenZoneColorBear = input.color(color.rgb(255, 140, 0, 80), "Bearish Golden Zone Color", group=grpPullback)
 deepZoneColor = input.color(color.rgb(255, 100, 100, 85), "Deep Zone Color", group=grpPullback)
+useProtectedFibOrigin = input.bool(false, "Use Protected Low/High for Fib Origin?", group=grpPullback, tooltip="When enabled, Fibonacci uses the absolute lowest/highest point in the impulse (Protected Level) instead of the swing pivot. This provides maximum accuracy for true impulse measurement. Default uses swing pivot (traditional approach).")
 
 // Confirmation settings
 grpConfirmation = "✅ Entry Confirmation"
@@ -1162,19 +1163,27 @@ if showPullbackZone
         // Clean up old zone
         cleanupPullbackZone()
 
-        // Set fib points: origin = PREVIOUS swing low (the one BEFORE the high that broke)
-        // This is the swing low that started the bullish impulse
-        currentFibOrigin := prevSwingLow
-        // Calculate highest high from that origin swing low to current bar (true impulse measurement)
-        barsFromSwingLow = bar_index - prevLowBar
-        currentFibExtreme := ta.highest(high, barsFromSwingLow + 1)
+        // Set fib points: Choose between swing low or protected low based on user setting
+        if useProtectedFibOrigin and not na(protectedLow)
+            // Protected mode: Use absolute lowest low in lookback range
+            currentFibOrigin := protectedLow
+            // Calculate highest high from protected low bar to current bar
+            barsFromOrigin = bar_index - protectedLowBar
+            currentFibExtreme := ta.highest(high, barsFromOrigin + 1)
+        else
+            // Default: Use swing low before the break (traditional approach)
+            currentFibOrigin := prevSwingLow
+            // Calculate highest high from that origin swing low to current bar
+            barsFromOrigin = bar_index - prevLowBar
+            currentFibExtreme := ta.highest(high, barsFromOrigin + 1)
+
         pullbackDirection := 1
         pullbackStartBar := bar_index
         pullbackConfirmed := false
         inGoldenZone := false
         inDeepZone := false
 
-        // Calculate fib levels (for bullish: retracement goes DOWN from impulse high to swing low)
+        // Calculate fib levels (for bullish: retracement goes DOWN from impulse high to origin low)
         fibRange = currentFibExtreme - currentFibOrigin
         currentFib50 := currentFibExtreme - (fibRange * fibUpperLevel)
         currentFib618 := currentFibExtreme - (fibRange * fibLowerLevel)
@@ -1188,19 +1197,27 @@ if showPullbackZone
         // Clean up old zone
         cleanupPullbackZone()
 
-        // Set fib points: origin = PREVIOUS swing high (the one BEFORE the low that broke)
-        // This is the swing high that started the bearish impulse
-        currentFibOrigin := prevSwingHigh
-        // Calculate lowest low from that origin swing high to current bar (true impulse measurement)
-        barsFromSwingHigh = bar_index - prevHighBar
-        currentFibExtreme := ta.lowest(low, barsFromSwingHigh + 1)
+        // Set fib points: Choose between swing high or protected high based on user setting
+        if useProtectedFibOrigin and not na(protectedHigh)
+            // Protected mode: Use absolute highest high in lookback range
+            currentFibOrigin := protectedHigh
+            // Calculate lowest low from protected high bar to current bar
+            barsFromOrigin = bar_index - protectedHighBar
+            currentFibExtreme := ta.lowest(low, barsFromOrigin + 1)
+        else
+            // Default: Use swing high before the break (traditional approach)
+            currentFibOrigin := prevSwingHigh
+            // Calculate lowest low from that origin swing high to current bar
+            barsFromOrigin = bar_index - prevHighBar
+            currentFibExtreme := ta.lowest(low, barsFromOrigin + 1)
+
         pullbackDirection := -1
         pullbackStartBar := bar_index
         pullbackConfirmed := false
         inGoldenZone := false
         inDeepZone := false
 
-        // Calculate fib levels (for bearish: retracement goes UP from impulse low to swing high)
+        // Calculate fib levels (for bearish: retracement goes UP from impulse low to origin high)
         fibRange = currentFibOrigin - currentFibExtreme
         currentFib50 := currentFibExtreme + (fibRange * fibUpperLevel)
         currentFib618 := currentFibExtreme + (fibRange * fibLowerLevel)
@@ -1231,9 +1248,11 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
     else
         // Dynamically update Fib extreme as price makes new highs/lows (until pullback starts)
         if pullbackDirection == 1
-            // Update to highest high since the origin swing low (continues tracking new highs)
-            barsFromSwingLow = bar_index - prevLowBar
-            newHigh = ta.highest(high, barsFromSwingLow + 1)
+            // Update to highest high since the origin (continues tracking new highs)
+            // Use correct origin bar based on which mode is active
+            originBar = useProtectedFibOrigin ? protectedLowBar : prevLowBar
+            barsFromOrigin = bar_index - originBar
+            newHigh = ta.highest(high, barsFromOrigin + 1)
             if newHigh > currentFibExtreme
                 currentFibExtreme := newHigh
                 // Recalculate fib levels with new extreme
@@ -1243,9 +1262,11 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
                 currentFib786 := currentFibExtreme - (fibRange * fibDeepLevel)
 
         if pullbackDirection == -1
-            // Update to lowest low since the origin swing high (continues tracking new lows)
-            barsFromSwingHigh = bar_index - prevHighBar
-            newLow = ta.lowest(low, barsFromSwingHigh + 1)
+            // Update to lowest low since the origin (continues tracking new lows)
+            // Use correct origin bar based on which mode is active
+            originBar = useProtectedFibOrigin ? protectedHighBar : prevHighBar
+            barsFromOrigin = bar_index - originBar
+            newLow = ta.lowest(low, barsFromOrigin + 1)
             if newLow < currentFibExtreme
                 currentFibExtreme := newLow
                 // Recalculate fib levels with new extreme
