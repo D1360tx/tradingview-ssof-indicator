@@ -2,6 +2,31 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [5.7] - 2026-01-05
+
+### Changed
+- **Golden zone historical persistence**
+  - Golden zones now remain visible until replaced by next zone
+  - Provides historical reference without cluttering chart
+  - Old zone automatically removed when new BOS creates new zone
+  - No more disappearing zones - always have one visible for context
+
+- **Dashboard text size increased**
+  - All dashboard rows now use `size.normal` (previously `size.small`)
+  - Better readability on all screen sizes
+  - Header and data rows now consistent size
+
+### How It Works
+**Previous behavior:**
+- Zone deleted when invalidated → screen goes blank
+- No reference until next BOS
+
+**New behavior:**
+- Zone persists as historical reference
+- Next BOS creates new zone and removes old one
+- Always one zone visible for reference
+- Clean chart (no clutter from multiple old zones)
+
 ## [5.6] - 2026-01-05
 
 ### Fixed
