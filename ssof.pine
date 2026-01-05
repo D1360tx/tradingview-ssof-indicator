@@ -3,7 +3,7 @@
 // GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V5.0", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V5.0.1", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -54,6 +54,9 @@ consolidationBars = input.int(20, "Lookback Bars", minval=10, maxval=100, group=
 consolidationRangeATR = input.float(2.0, "Max Range (ATR)", minval=0.5, maxval=5.0, step=0.25, group=grpConsolidation, tooltip="Maximum range size as ATR multiple to qualify as consolidation")
 swingClusterATR = input.float(0.5, "Swing Cluster Tolerance (ATR)", minval=0.1, maxval=2.0, step=0.1, group=grpConsolidation, tooltip="How close swing points must be to count as clustered")
 minSwingTouches = input.int(2, "Min Touches (each side)", minval=2, maxval=5, group=grpConsolidation, tooltip="Minimum swing highs AND swing lows needed")
+useTimeClustering = input.bool(false, "Require Time Clustering? (V5.0)", group=grpConsolidation, tooltip="Require swings to be within time window - makes detection stricter")
+useATRCompression = input.bool(false, "Require ATR Compression? (V5.0)", group=grpConsolidation, tooltip="Require decreasing volatility - makes detection stricter")
+atrCompressionRatio = input.float(0.90, "ATR Compression Ratio", minval=0.7, maxval=1.0, step=0.05, group=grpConsolidation, tooltip="ATR must be < this ratio of 20-bar average (lower = stricter)")
 showConsolidationBox = input.bool(true, "Show Consolidation Range Box?", group=grpConsolidation, tooltip="Draw a box around the consolidation range")
 showHistoricalConsolidation = input.bool(true, "Show Historical Consolidation?", group=grpConsolidation, tooltip="Keep broken consolidation zones visible (dimmed)")
 maxHistoricalBoxes = input.int(5, "Max Historical Boxes", minval=1, maxval=20, group=grpConsolidation, tooltip="Number of historical consolidation boxes to keep")
@@ -491,25 +494,28 @@ if useConsolidation
     highsPriceClustered = isArrayClustered(recentSwingHighs, swingHighsTolerance)
     lowsPriceClustered = isArrayClustered(recentSwingLows, swingLowsTolerance)
 
-    // Check if swings are clustered in TIME (within consolidationBars window)
+    // Check if swings are clustered in TIME (within consolidationBars window) - OPTIONAL
     maxBarSpread = consolidationBars * 1.5  // Allow 1.5x the lookback period
-    highsTimeClustered = isTimesClustered(recentSwingHighBars, maxBarSpread)
-    lowsTimeClustered = isTimesClustered(recentSwingLowBars, maxBarSpread)
+    highsTimeClustered = useTimeClustering ? isTimesClustered(recentSwingHighBars, maxBarSpread) : true
+    lowsTimeClustered = useTimeClustering ? isTimesClustered(recentSwingLowBars, maxBarSpread) : true
 
-    // Check for ATR compression (volatility decreasing)
-    atrCompressed = isATRCompressed(atrValue, 20, 0.85)  // ATR < 85% of 20-bar average
+    // Check for ATR compression (volatility decreasing) - OPTIONAL
+    atrCompressed = useATRCompression ? isATRCompressed(atrValue, 20, atrCompressionRatio) : true
 
-    // Enhanced consolidation criteria:
+    // Consolidation criteria (V5.0):
+    // CORE (always required):
     // 1. Range is tight relative to ATR
     // 2. Have enough swing points
-    // 3. Swing highs are clustered in PRICE (testing similar resistance)
-    // 4. Swing lows are clustered in PRICE (testing similar support)
-    // 5. Swings are clustered in TIME (not spread too far apart)
-    // 6. ATR is compressed (volatility decreasing)
-    // 7. Minimum bars since last impulse (avoid premature detection)
+    // 3. Swing highs are clustered in PRICE
+    // 4. Swing lows are clustered in PRICE
+    // 5. Minimum bars since last impulse
+    // OPTIONAL (V5.0 filters - can be toggled):
+    // 6. Swings are clustered in TIME (useTimeClustering)
+    // 7. ATR is compressed (useATRCompression)
     minBarsInRange = 10
     hasMinimumBars = barsSinceImpulse >= minBarsInRange
 
+    // Core criteria + optional V5.0 filters
     isConsolidating = isRangeTight and hasEnoughSwings and highsPriceClustered and lowsPriceClustered and highsTimeClustered and lowsTimeClustered and atrCompressed and hasMinimumBars
     
     // Enter consolidation

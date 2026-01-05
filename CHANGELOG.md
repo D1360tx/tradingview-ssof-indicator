@@ -2,6 +2,24 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [5.0.1] - 2026-01-05
+
+### Fixed
+- **Consolidation detection not triggering**
+  - Made V5.0 filters (time clustering & ATR compression) OPTIONAL
+  - Both default to OFF for backward compatibility with V4.7 behavior
+  - Users can now enable stricter filters individually
+
+### Added
+- New setting: "Require Time Clustering? (V5.0)" - defaults to OFF
+- New setting: "Require ATR Compression? (V5.0)" - defaults to OFF
+- New setting: "ATR Compression Ratio" - configurable threshold (default 0.90)
+
+### Changed
+- V5.0 filters are now opt-in rather than always-on
+- Core consolidation detection works like V4.7 by default
+- Users can progressively enable stricter filters as needed
+
 ## [5.0] - 2026-01-05
 
 ### Fixed
