@@ -2,6 +2,20 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [5.1] - 2026-01-05
+
+### Changed
+- **Improved Fibonacci pullback calculation accuracy**
+  - Golden zone now measures between structural swing points (swing low to swing high)
+  - Previously used confirmation candle's high/low (inconsistent and arbitrary)
+  - Fibonacci levels are now stable and consistent across all BOS events
+  - Better alignment with traditional Fibonacci retracement methodology
+
+### Technical Details
+- Bullish: 0% = swing low, 100% = swing high (that was broken)
+- Bearish: 0% = swing high, 100% = swing low (that was broken)
+- Eliminates variability from confirmation candle wicks/bodies
+
 ## [5.0.1] - 2026-01-05
 
 ### Fixed

@@ -3,7 +3,7 @@
 // GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V5.0.1", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V5.1", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -1162,16 +1162,16 @@ if showPullbackZone
         // Clean up old zone
         cleanupPullbackZone()
         
-        // Set fib points: origin = swing low, extreme = high that triggered BOS
+        // Set fib points: origin = swing low, extreme = swing high (structural points)
         currentFibOrigin := confirmedSwingLow
-        currentFibExtreme := high  // Current high that broke structure
+        currentFibExtreme := confirmedSwingHigh  // Use the swing high that was broken (not current bar)
         pullbackDirection := 1
         pullbackStartBar := bar_index
         pullbackConfirmed := false
         inGoldenZone := false
         inDeepZone := false
-        
-        // Calculate fib levels (for bullish: retracement goes DOWN from high to low)
+
+        // Calculate fib levels (for bullish: retracement goes DOWN from swing high to swing low)
         fibRange = currentFibExtreme - currentFibOrigin
         currentFib50 := currentFibExtreme - (fibRange * fibUpperLevel)
         currentFib618 := currentFibExtreme - (fibRange * fibLowerLevel)
@@ -1185,16 +1185,16 @@ if showPullbackZone
         // Clean up old zone
         cleanupPullbackZone()
         
-        // Set fib points: origin = swing high, extreme = low that triggered BOS
+        // Set fib points: origin = swing high, extreme = swing low (structural points)
         currentFibOrigin := confirmedSwingHigh
-        currentFibExtreme := low  // Current low that broke structure
+        currentFibExtreme := confirmedSwingLow  // Use the swing low that was broken (not current bar)
         pullbackDirection := -1
         pullbackStartBar := bar_index
         pullbackConfirmed := false
         inGoldenZone := false
         inDeepZone := false
-        
-        // Calculate fib levels (for bearish: retracement goes UP from low to high)
+
+        // Calculate fib levels (for bearish: retracement goes UP from swing low to swing high)
         fibRange = currentFibOrigin - currentFibExtreme
         currentFib50 := currentFibExtreme + (fibRange * fibUpperLevel)
         currentFib618 := currentFibExtreme + (fibRange * fibLowerLevel)
