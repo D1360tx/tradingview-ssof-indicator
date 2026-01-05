@@ -3,7 +3,7 @@
 // GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V4.8", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V5.0", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -180,6 +180,8 @@ var array<box> historicalConsolidationBoxes = array.new<box>()
 // Arrays for tracking recent swing points (for consolidation range)
 var array<float> recentSwingHighs = array.new<float>()
 var array<float> recentSwingLows = array.new<float>()
+var array<int> recentSwingHighBars = array.new<int>()
+var array<int> recentSwingLowBars = array.new<int>()
 var int maxSwingsToTrack = 10
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -215,6 +217,21 @@ getLineStyle(styleStr) =>
         "Dotted" => line.style_dotted
         => line.style_dashed
 
+// Check if swings in array are clustered in TIME (within maxBarSpread bars of each other)
+isTimesClustered(barArray, maxBarSpread) =>
+    if array.size(barArray) < 2
+        false
+    else
+        oldestBar = array.min(barArray)
+        newestBar = array.max(barArray)
+        barSpan = newestBar - oldestBar
+        barSpan <= maxBarSpread
+
+// Check if there's ATR compression (volatility decreasing)
+isATRCompressed(currentATR, lookback, compressionRatio) =>
+    avgATR = ta.sma(currentATR, lookback)
+    currentATR < (avgATR * compressionRatio)
+
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░ PIVOT DETECTION ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 // ══════════════════════════════════════════════════════════════════════════════
@@ -247,11 +264,13 @@ if not na(swingHigh)
     prevHighBar := confirmedHighBar
     confirmedSwingHigh := swingHigh
     confirmedHighBar := bar_index - swingLength
-    
-    // Track for consolidation detection
+
+    // Track for consolidation detection (price and bar index)
     array.push(recentSwingHighs, swingHigh)
+    array.push(recentSwingHighBars, bar_index - swingLength)
     if array.size(recentSwingHighs) > maxSwingsToTrack
         array.shift(recentSwingHighs)
+        array.shift(recentSwingHighBars)
 
 // Update swing lows
 if not na(swingLow)
@@ -259,11 +278,13 @@ if not na(swingLow)
     prevLowBar := confirmedLowBar
     confirmedSwingLow := swingLow
     confirmedLowBar := bar_index - swingLength
-    
-    // Track for consolidation detection
+
+    // Track for consolidation detection (price and bar index)
     array.push(recentSwingLows, swingLow)
+    array.push(recentSwingLowBars, bar_index - swingLength)
     if array.size(recentSwingLows) > maxSwingsToTrack
         array.shift(recentSwingLows)
+        array.shift(recentSwingLowBars)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░ MARKET STRUCTURE LOGIC ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -443,33 +464,53 @@ getClusterCenter(arr) =>
 
 if useConsolidation
     barsSinceImpulse += 1
-    
-    // Clear swing arrays on new BOS (fresh start)
+
+    // Don't completely clear swing arrays on BOS - keep last 2 swings for context
     if bullishBOS or bearishBOS
-        array.clear(recentSwingHighs)
-        array.clear(recentSwingLows)
-    
+        if array.size(recentSwingHighs) > 2
+            while array.size(recentSwingHighs) > 2
+                array.shift(recentSwingHighs)
+                array.shift(recentSwingHighBars)
+        if array.size(recentSwingLows) > 2
+            while array.size(recentSwingLows) > 2
+                array.shift(recentSwingLows)
+                array.shift(recentSwingLowBars)
+
     // Calculate current price range over lookback
     rangeHigh = ta.highest(high, consolidationBars)
     rangeLow = ta.lowest(low, consolidationBars)
     currentRange = rangeHigh - rangeLow
-    
+
     // Check conditions for consolidation
     hasEnoughSwings = array.size(recentSwingHighs) >= minSwingTouches and array.size(recentSwingLows) >= minSwingTouches
     isRangeTight = currentRange <= (atrValue * consolidationRangeATR)
-    
-    // Check if swing highs are clustered (all within tolerance of each other)
+
+    // Check if swing highs/lows are clustered in PRICE (all within tolerance of each other)
     swingHighsTolerance = atrValue * swingClusterATR
     swingLowsTolerance = atrValue * swingClusterATR
-    highsClustered = isArrayClustered(recentSwingHighs, swingHighsTolerance)
-    lowsClustered = isArrayClustered(recentSwingLows, swingLowsTolerance)
-    
-    // Consolidation criteria:
+    highsPriceClustered = isArrayClustered(recentSwingHighs, swingHighsTolerance)
+    lowsPriceClustered = isArrayClustered(recentSwingLows, swingLowsTolerance)
+
+    // Check if swings are clustered in TIME (within consolidationBars window)
+    maxBarSpread = consolidationBars * 1.5  // Allow 1.5x the lookback period
+    highsTimeClustered = isTimesClustered(recentSwingHighBars, maxBarSpread)
+    lowsTimeClustered = isTimesClustered(recentSwingLowBars, maxBarSpread)
+
+    // Check for ATR compression (volatility decreasing)
+    atrCompressed = isATRCompressed(atrValue, 20, 0.85)  // ATR < 85% of 20-bar average
+
+    // Enhanced consolidation criteria:
     // 1. Range is tight relative to ATR
     // 2. Have enough swing points
-    // 3. Swing highs are clustered (testing similar resistance)
-    // 4. Swing lows are clustered (testing similar support)
-    isConsolidating = isRangeTight and hasEnoughSwings and highsClustered and lowsClustered
+    // 3. Swing highs are clustered in PRICE (testing similar resistance)
+    // 4. Swing lows are clustered in PRICE (testing similar support)
+    // 5. Swings are clustered in TIME (not spread too far apart)
+    // 6. ATR is compressed (volatility decreasing)
+    // 7. Minimum bars since last impulse (avoid premature detection)
+    minBarsInRange = 10
+    hasMinimumBars = barsSinceImpulse >= minBarsInRange
+
+    isConsolidating = isRangeTight and hasEnoughSwings and highsPriceClustered and lowsPriceClustered and highsTimeClustered and lowsTimeClustered and atrCompressed and hasMinimumBars
     
     // Enter consolidation
     if isConsolidating and not wasConsolidating
@@ -848,7 +889,7 @@ if bullishBOS and not na(confirmedHighBar)
         developingHighLabel := na
     
     // Determine color based on strength - bullish uses green tones
-    var color bosColor = bullColor
+    bosColor = bullColor
     if useDisplacementGrading
         bosColor := bosIsStrong ? color.rgb(0, 255, 100) : color.rgb(0, 180, 80)  // Bright green / dimmer green
     else
@@ -876,7 +917,7 @@ if bearishBOS and not na(confirmedLowBar)
         developingLowLabel := na
     
     // Determine color based on strength - bearish uses red tones
-    var color bosColor = bearColor
+    bosColor = bearColor
     if useDisplacementGrading
         bosColor := bosIsStrong ? color.rgb(255, 50, 50) : color.rgb(200, 80, 80)  // Bright red / dimmer red
     else
@@ -1391,34 +1432,34 @@ if showDashboard
         pullbackStatusColor := color.gray
     
     // Row 0: Structure state (header)
-    table.cell(dashboard, 0, 0, stateText, text_color=stateColor, bgcolor=color.new(stateColor, 85), text_size=size.small)
-    table.cell(dashboard, 1, 0, timeframe.period + " | " + str.tostring(swingLength), text_color=color.orange, bgcolor=color.new(color.gray, 85), text_size=size.small)
+    table.cell(dashboard, 0, 0, stateText, text_color=stateColor, bgcolor=color.new(stateColor, 85), text_size=size.normal)
+    table.cell(dashboard, 1, 0, timeframe.period + " | " + str.tostring(swingLength), text_color=color.orange, bgcolor=color.new(color.gray, 85), text_size=size.normal)
     
     // Row 1: Swing levels combined
-    table.cell(dashboard, 0, 1, "H " + str.tostring(confirmedSwingHigh, format.mintick), text_color=bearColor, text_size=size.tiny)
-    table.cell(dashboard, 1, 1, "L " + str.tostring(confirmedSwingLow, format.mintick), text_color=bullColor, text_size=size.tiny)
+    table.cell(dashboard, 0, 1, "H " + str.tostring(confirmedSwingHigh, format.mintick), text_color=bearColor, text_size=size.small)
+    table.cell(dashboard, 1, 1, "L " + str.tostring(confirmedSwingLow, format.mintick), text_color=bullColor, text_size=size.small)
     
     // Row 2: Protected level
-    table.cell(dashboard, 0, 2, "Prot", text_color=color.gray, text_size=size.tiny)
-    table.cell(dashboard, 1, 2, protectedText, text_color=stateColor, text_size=size.tiny)
+    table.cell(dashboard, 0, 2, "Prot", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 2, protectedText, text_color=stateColor, text_size=size.small)
     
     // Row 3: BOS strength + bars since
-    table.cell(dashboard, 0, 3, "BOS", text_color=color.gray, text_size=size.tiny)
-    table.cell(dashboard, 1, 3, bosStrengthText + " | " + str.tostring(barsSinceImpulse) + "b", text_color=bosStrengthColor, text_size=size.tiny)
+    table.cell(dashboard, 0, 3, "BOS", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 3, bosStrengthText + " | " + str.tostring(barsSinceImpulse) + "b", text_color=bosStrengthColor, text_size=size.small)
     
     // Row 4: Active zones
     activeZoneCount = array.size(activeZones)
-    table.cell(dashboard, 0, 4, "S/D", text_color=color.gray, text_size=size.tiny)
-    table.cell(dashboard, 1, 4, str.tostring(activeZoneCount), text_color=color.white, text_size=size.tiny)
+    table.cell(dashboard, 0, 4, "S/D", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 4, str.tostring(activeZoneCount), text_color=color.white, text_size=size.small)
     
     // Row 5: Pullback status
-    table.cell(dashboard, 0, 5, "Entry", text_color=color.gray, text_size=size.tiny)
-    table.cell(dashboard, 1, 5, pullbackStatus, text_color=pullbackStatusColor, text_size=size.tiny)
+    table.cell(dashboard, 0, 5, "Entry", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 5, pullbackStatus, text_color=pullbackStatusColor, text_size=size.small)
     
-    // Row 6: Auto-TF indicator (tiny)
+    // Row 6: Auto-TF indicator
     autoTFText = useAutoTF ? "Auto" : "Manual"
-    table.cell(dashboard, 0, 6, "TF", text_color=color.gray, text_size=size.tiny)
-    table.cell(dashboard, 1, 6, autoTFText, text_color=useAutoTF ? color.green : color.gray, text_size=size.tiny)
+    table.cell(dashboard, 0, 6, "TF", text_color=color.gray, text_size=size.small)
+    table.cell(dashboard, 1, 6, autoTFText, text_color=useAutoTF ? color.green : color.gray, text_size=size.small)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ALERTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

@@ -2,6 +2,46 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [5.0] - 2026-01-05
+
+### Fixed
+- **bosColor variable redeclaration bug**
+  - Removed `var` keyword from bosColor declarations in BOS blocks
+  - Eliminates potential compilation issues
+
+### Changed
+- **Significantly enhanced consolidation detection algorithm**
+  - Added TIME clustering: swings must occur within 1.5x lookback window
+  - Added ATR compression filter: requires volatility < 85% of 20-bar average
+  - Added minimum bars requirement: 10 bars minimum in range before detection
+  - Improved swing array management: keeps last 2 swings on BOS for context
+  - Consolidation now checks 7 criteria (up from 4):
+    1. Range tightness (existing)
+    2. Minimum swing touches (existing)
+    3. Price clustering - highs (existing)
+    4. Price clustering - lows (existing)
+    5. **NEW:** Time clustering - highs
+    6. **NEW:** Time clustering - lows
+    7. **NEW:** ATR compression
+  - Should eliminate false positives on impulse moves
+  - Should prevent detection when swings are too far apart in time
+
+### Added
+- New helper functions: `isTimesClustered()`, `isATRCompressed()`
+- Bar index tracking arrays for swing points
+
+### Verified
+- Supply/Demand zone creation and mitigation logic confirmed working correctly
+
+## [4.9] - 2026-01-04
+
+### Changed
+- **Dashboard text size increase for desktop readability**
+  - Structure state row: size.small → size.normal
+  - Timeframe row: size.small → size.normal
+  - All other rows: size.tiny → size.small
+  - Better balance between mobile and desktop viewing
+
 ## [4.8] - 2026-01-02
 
 ### Changed

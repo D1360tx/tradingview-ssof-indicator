@@ -10,7 +10,7 @@
 
 **Primary Use Case:** Diego trades Silver/USD (XAG/USD) on 1H timeframe, holding positions 5 minutes to 8 hours.
 
-**Current Version:** V4.9
+**Current Version:** V5.0
 
 ---
 
@@ -123,7 +123,7 @@ pullbackConfirmed: bool         // Entry confirmation triggered
 
 | Feature | Issue | Notes |
 |---------|-------|-------|
-| Consolidation Detection | A1 | Current algorithm still not accurate - see Known Issues |
+| Consolidation Detection | A1 | V5.0 significantly improved - now includes time clustering, ATR compression, and minimum bars requirement |
 
 ### ❌ Not Implemented
 
@@ -136,30 +136,40 @@ pullbackConfirmed: bool         // Entry confirmation triggered
 
 ## Known Issues & Bugs
 
-### 1. Consolidation Detection (HIGH PRIORITY)
+### 1. Consolidation Detection (IMPROVED IN V5.0)
 
-**Problem:** The consolidation box often appears in wrong places or doesn't capture obvious consolidation zones.
+**Status:** Significantly enhanced in V5.0 with multiple new filters.
 
-**Current Algorithm (V4.7+):**
+**Current Algorithm (V5.0):**
 ```
 Consolidation = TRUE when ALL:
   1. Range < consolidationRangeATR * ATR (default 2.0)
   2. At least minSwingTouches swing highs AND lows exist (default 2)
-  3. Swing highs are clustered within swingClusterATR * ATR
-  4. Swing lows are clustered within swingClusterATR * ATR
+  3. Swing highs are clustered within swingClusterATR * ATR (PRICE)
+  4. Swing lows are clustered within swingClusterATR * ATR (PRICE)
+  5. Swing highs are clustered in TIME (within 1.5x lookback bars)
+  6. Swing lows are clustered in TIME (within 1.5x lookback bars)
+  7. ATR is compressed (< 85% of 20-bar average)
+  8. Minimum 10 bars since last impulse
 ```
 
-**What's Been Tried:**
+**Changes in V5.0:**
+- ✅ Added time clustering: swings must occur within time window
+- ✅ Added ATR compression filter: detects decreasing volatility
+- ✅ Added minimum bars requirement: prevents premature detection
+- ✅ Improved swing array management: keeps last 2 swings on BOS for context
+- ✅ Fixed bosColor variable redeclaration bug
+
+**Previous Attempts:**
 - V4.1: Bars since BOS + directional move check → Failed (impulse moves labeled as consolidation)
 - V4.4: ta.highest/ta.lowest over lookback → Failed (captured impulse candles)
 - V4.5: Swing point arrays, max/min of swings → Better but still issues
 - V4.7: Swing clustering + range tightness → Improved but not perfect
+- V5.0: Added time clustering, ATR compression, minimum bars → **Significantly better**
 
-**What Might Work:**
-- Require swings to be within X bars of each other (time clustering, not just price)
+**Remaining Improvements (Future):**
 - Detect actual "tests" of levels (wicks touching but not breaking)
-- Use ATR compression as additional filter
-- Track swing sequence (needs alternating H-L-H-L pattern)
+- Track swing sequence alternation (H-L-H-L pattern)
 
 ### 2. Zone Overlap
 
@@ -322,4 +332,4 @@ alertcondition(condition, title="Alert Title", message="Message on {{ticker}} {{
 
 ---
 
-*Last Updated: 2026-01-04 (V4.9)*
+*Last Updated: 2026-01-05 (V5.0)*
