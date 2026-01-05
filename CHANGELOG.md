@@ -2,6 +2,21 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [5.2] - 2026-01-05
+
+### Changed
+- **Corrected Fibonacci calculation to measure true impulse range**
+  - Now uses highest high since swing low (bullish) / lowest low since swing high (bearish)
+  - V5.1 incorrectly used the swing level that was broken (not the impulse extreme)
+  - Aligns with traditional Fibonacci retracement methodology
+  - Measures the actual impulse move from start to finish
+
+### Technical Details
+- Bullish: 0% = swing low, 100% = `ta.highest(high)` from swing low bar to current bar
+- Bearish: 0% = swing high, 100% = `ta.lowest(low)` from swing high bar to current bar
+- Golden zone now represents proper retracement of the full impulse move
+- More accurate and consistent with standard Fib tools
+
 ## [5.1] - 2026-01-05
 
 ### Changed

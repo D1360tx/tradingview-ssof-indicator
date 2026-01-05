@@ -3,7 +3,7 @@
 // GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V5.1", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V5.2", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -1161,22 +1161,24 @@ if showPullbackZone
     if bullishBOS and not na(confirmedSwingLow) and not na(confirmedSwingHigh)
         // Clean up old zone
         cleanupPullbackZone()
-        
-        // Set fib points: origin = swing low, extreme = swing high (structural points)
+
+        // Set fib points: origin = swing low, extreme = highest high since swing low (true impulse)
         currentFibOrigin := confirmedSwingLow
-        currentFibExtreme := confirmedSwingHigh  // Use the swing high that was broken (not current bar)
+        // Calculate highest high from swing low bar to current bar (true impulse measurement)
+        barsFromSwingLow = bar_index - confirmedLowBar
+        currentFibExtreme := ta.highest(high, barsFromSwingLow + 1)
         pullbackDirection := 1
         pullbackStartBar := bar_index
         pullbackConfirmed := false
         inGoldenZone := false
         inDeepZone := false
 
-        // Calculate fib levels (for bullish: retracement goes DOWN from swing high to swing low)
+        // Calculate fib levels (for bullish: retracement goes DOWN from impulse high to swing low)
         fibRange = currentFibExtreme - currentFibOrigin
         currentFib50 := currentFibExtreme - (fibRange * fibUpperLevel)
         currentFib618 := currentFibExtreme - (fibRange * fibLowerLevel)
         currentFib786 := currentFibExtreme - (fibRange * fibDeepLevel)
-        
+
         // Reset internal swing for confirmation tracking
         internalSwingHigh := na
     
@@ -1184,22 +1186,24 @@ if showPullbackZone
     if bearishBOS and not na(confirmedSwingHigh) and not na(confirmedSwingLow)
         // Clean up old zone
         cleanupPullbackZone()
-        
-        // Set fib points: origin = swing high, extreme = swing low (structural points)
+
+        // Set fib points: origin = swing high, extreme = lowest low since swing high (true impulse)
         currentFibOrigin := confirmedSwingHigh
-        currentFibExtreme := confirmedSwingLow  // Use the swing low that was broken (not current bar)
+        // Calculate lowest low from swing high bar to current bar (true impulse measurement)
+        barsFromSwingHigh = bar_index - confirmedHighBar
+        currentFibExtreme := ta.lowest(low, barsFromSwingHigh + 1)
         pullbackDirection := -1
         pullbackStartBar := bar_index
         pullbackConfirmed := false
         inGoldenZone := false
         inDeepZone := false
 
-        // Calculate fib levels (for bearish: retracement goes UP from swing low to swing high)
+        // Calculate fib levels (for bearish: retracement goes UP from impulse low to swing high)
         fibRange = currentFibOrigin - currentFibExtreme
         currentFib50 := currentFibExtreme + (fibRange * fibUpperLevel)
         currentFib618 := currentFibExtreme + (fibRange * fibLowerLevel)
         currentFib786 := currentFibExtreme + (fibRange * fibDeepLevel)
-        
+
         // Reset internal swing for confirmation tracking
         internalSwingLow := na
 
