@@ -3,7 +3,7 @@
 // GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V5.7", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V6.2.2 - Consolidation Disabled", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -50,13 +50,9 @@ showTrapWarnings = input.bool(true, "Show Trap Warnings?", group=grpInternal, to
 // ─────────────────────────── Consolidation Detection (A1) ─────────────────────
 grpConsolidation = "📊 Consolidation Detection"
 useConsolidation = input.bool(true, "Enable Consolidation Detection?", group=grpConsolidation, tooltip="Detect when market is range-bound")
-consolidationBars = input.int(20, "Lookback Bars", minval=10, maxval=100, group=grpConsolidation, tooltip="Number of bars to analyze for consolidation")
-consolidationRangeATR = input.float(2.0, "Max Range (ATR)", minval=0.5, maxval=5.0, step=0.25, group=grpConsolidation, tooltip="Maximum range size as ATR multiple to qualify as consolidation")
-swingClusterATR = input.float(0.5, "Swing Cluster Tolerance (ATR)", minval=0.1, maxval=2.0, step=0.1, group=grpConsolidation, tooltip="How close swing points must be to count as clustered")
-minSwingTouches = input.int(2, "Min Touches (each side)", minval=2, maxval=5, group=grpConsolidation, tooltip="Minimum swing highs AND swing lows needed")
-useTimeClustering = input.bool(false, "Require Time Clustering? (V5.0)", group=grpConsolidation, tooltip="Require swings to be within time window - makes detection stricter")
-useATRCompression = input.bool(false, "Require ATR Compression? (V5.0)", group=grpConsolidation, tooltip="Require decreasing volatility - makes detection stricter")
-atrCompressionRatio = input.float(0.90, "ATR Compression Ratio", minval=0.7, maxval=1.0, step=0.05, group=grpConsolidation, tooltip="ATR must be < this ratio of 20-bar average (lower = stricter)")
+consolidationBars = input.int(8, "Lookback Bars", minval=3, maxval=20, group=grpConsolidation, tooltip="Number of bars to analyze for consolidation range")
+consolidationRangeATR = input.float(2.5, "Max Range (ATR)", minval=0.3, maxval=5.0, step=0.1, group=grpConsolidation, tooltip="Maximum range size as ATR multiple to qualify as consolidation")
+minConsolidationBars = input.int(6, "Minimum Duration (bars)", minval=3, maxval=20, group=grpConsolidation, tooltip="Minimum bars price must stay in range to qualify as consolidation")
 showConsolidationBox = input.bool(true, "Show Consolidation Range Box?", group=grpConsolidation, tooltip="Draw a box around the consolidation range")
 showHistoricalConsolidation = input.bool(true, "Show Historical Consolidation?", group=grpConsolidation, tooltip="Keep broken consolidation zones visible (dimmed)")
 maxHistoricalBoxes = input.int(5, "Max Historical Boxes", minval=1, maxval=20, group=grpConsolidation, tooltip="Number of historical consolidation boxes to keep")
@@ -181,12 +177,12 @@ var array<Zone> activeZones = array.new<Zone>()
 var PullbackZone activePullbackZone = na
 var array<box> historicalConsolidationBoxes = array.new<box>()
 
-// Arrays for tracking recent swing points (for consolidation range)
-var array<float> recentSwingHighs = array.new<float>()
-var array<float> recentSwingLows = array.new<float>()
-var array<int> recentSwingHighBars = array.new<int>()
-var array<int> recentSwingLowBars = array.new<int>()
-var int maxSwingsToTrack = 10
+// Arrays for tracking recent swing points (NOT USED IN V6.0 - simple range detection doesn't need swing tracking)
+// var array<float> recentSwingHighs = array.new<float>()
+// var array<float> recentSwingLows = array.new<float>()
+// var array<int> recentSwingHighBars = array.new<int>()
+// var array<int> recentSwingLowBars = array.new<int>()
+// var int maxSwingsToTrack = 10
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░ HELPER FUNCTIONS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -221,20 +217,21 @@ getLineStyle(styleStr) =>
         "Dotted" => line.style_dotted
         => line.style_dashed
 
+// V6.0: Helper functions below not used in simple range detection
 // Check if swings in array are clustered in TIME (within maxBarSpread bars of each other)
-isTimesClustered(barArray, maxBarSpread) =>
-    if array.size(barArray) < 2
-        false
-    else
-        oldestBar = array.min(barArray)
-        newestBar = array.max(barArray)
-        barSpan = newestBar - oldestBar
-        barSpan <= maxBarSpread
+// isTimesClustered(barArray, maxBarSpread) =>
+//     if array.size(barArray) < 2
+//         false
+//     else
+//         oldestBar = array.min(barArray)
+//         newestBar = array.max(barArray)
+//         barSpan = newestBar - oldestBar
+//         barSpan <= maxBarSpread
 
 // Check if there's ATR compression (volatility decreasing)
-isATRCompressed(currentATR, lookback, compressionRatio) =>
-    avgATR = ta.sma(currentATR, lookback)
-    currentATR < (avgATR * compressionRatio)
+// isATRCompressed(currentATR, lookback, compressionRatio) =>
+//     avgATR = ta.sma(currentATR, lookback)
+//     currentATR < (avgATR * compressionRatio)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░ PIVOT DETECTION ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -269,12 +266,7 @@ if not na(swingHigh)
     confirmedSwingHigh := swingHigh
     confirmedHighBar := bar_index - swingLength
 
-    // Track for consolidation detection (price and bar index)
-    array.push(recentSwingHighs, swingHigh)
-    array.push(recentSwingHighBars, bar_index - swingLength)
-    if array.size(recentSwingHighs) > maxSwingsToTrack
-        array.shift(recentSwingHighs)
-        array.shift(recentSwingHighBars)
+    // V6.0: No longer tracking swing arrays for consolidation
 
 // Update swing lows
 if not na(swingLow)
@@ -283,12 +275,7 @@ if not na(swingLow)
     confirmedSwingLow := swingLow
     confirmedLowBar := bar_index - swingLength
 
-    // Track for consolidation detection (price and bar index)
-    array.push(recentSwingLows, swingLow)
-    array.push(recentSwingLowBars, bar_index - swingLength)
-    if array.size(recentSwingLows) > maxSwingsToTrack
-        array.shift(recentSwingLows)
-        array.shift(recentSwingLowBars)
+    // V6.0: No longer tracking swing arrays for consolidation
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░ MARKET STRUCTURE LOGIC ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -313,6 +300,10 @@ var int lastImpulseBar = na
 var int barsSinceImpulse = 0
 var float consolidationRangeHigh = na
 var float consolidationRangeLow = na
+var int actualConsolidationStart = na  // Track when consolidation actually began
+var int barsInTightRange = 0
+var bool isConsolidating = false
+var bool isRangeTight = false
 var box consolidationBox = na
 
 // BOS Strength tracking
@@ -447,153 +438,21 @@ if bearishBOS
         consolidationBox := na
 
 // ─────────────────────────── Consolidation Detection (A1) ─────────────────────
-// New approach: Detect tight ranges where swing points cluster
+// Post-BOS Range Logic: True consolidation = range between broken level and next swing
+// TEMPORARILY DISABLED - Will revisit consolidation logic later
 
-// Function to check if values in array are clustered (within tolerance)
-isArrayClustered(arr, tolerance) =>
-    if array.size(arr) < 2
-        false
-    else
-        maxVal = array.max(arr)
-        minVal = array.min(arr)
-        spread = maxVal - minVal
-        spread <= tolerance
+// CONSOLIDATION DETECTION TEMPORARILY DISABLED
+// Will revisit this logic later - for now focusing on core indicator functionality
+//
+// if useConsolidation
+//     // POST-BOS CONSOLIDATION DETECTION  
+//     // After BOS: Range = Broken High/Low to Next Swing Low/High
+//     // [All consolidation logic commented out]
+//
 
-// Function to get cluster center (average of array)
-getClusterCenter(arr) =>
-    if array.size(arr) == 0
-        na
-    else
-        array.avg(arr)
-
-if useConsolidation
+// Increment bars since last BOS (unless currently in BOS)
+if not bullishBOS and not bearishBOS
     barsSinceImpulse += 1
-
-    // Don't completely clear swing arrays on BOS - keep last 2 swings for context
-    if bullishBOS or bearishBOS
-        if array.size(recentSwingHighs) > 2
-            while array.size(recentSwingHighs) > 2
-                array.shift(recentSwingHighs)
-                array.shift(recentSwingHighBars)
-        if array.size(recentSwingLows) > 2
-            while array.size(recentSwingLows) > 2
-                array.shift(recentSwingLows)
-                array.shift(recentSwingLowBars)
-
-    // Calculate current price range over lookback
-    rangeHigh = ta.highest(high, consolidationBars)
-    rangeLow = ta.lowest(low, consolidationBars)
-    currentRange = rangeHigh - rangeLow
-
-    // Check conditions for consolidation
-    hasEnoughSwings = array.size(recentSwingHighs) >= minSwingTouches and array.size(recentSwingLows) >= minSwingTouches
-    isRangeTight = currentRange <= (atrValue * consolidationRangeATR)
-
-    // Check if swing highs/lows are clustered in PRICE (all within tolerance of each other)
-    swingHighsTolerance = atrValue * swingClusterATR
-    swingLowsTolerance = atrValue * swingClusterATR
-    highsPriceClustered = isArrayClustered(recentSwingHighs, swingHighsTolerance)
-    lowsPriceClustered = isArrayClustered(recentSwingLows, swingLowsTolerance)
-
-    // Check if swings are clustered in TIME (within consolidationBars window) - OPTIONAL
-    maxBarSpread = consolidationBars * 1.5  // Allow 1.5x the lookback period
-    highsTimeClustered = useTimeClustering ? isTimesClustered(recentSwingHighBars, maxBarSpread) : true
-    lowsTimeClustered = useTimeClustering ? isTimesClustered(recentSwingLowBars, maxBarSpread) : true
-
-    // Check for ATR compression (volatility decreasing) - OPTIONAL
-    atrCompressed = useATRCompression ? isATRCompressed(atrValue, 20, atrCompressionRatio) : true
-
-    // Consolidation criteria (V5.0):
-    // CORE (always required):
-    // 1. Range is tight relative to ATR
-    // 2. Have enough swing points
-    // 3. Swing highs are clustered in PRICE
-    // 4. Swing lows are clustered in PRICE
-    // 5. Minimum bars since last impulse
-    // OPTIONAL (V5.0 filters - can be toggled):
-    // 6. Swings are clustered in TIME (useTimeClustering)
-    // 7. ATR is compressed (useATRCompression)
-    minBarsInRange = 10
-    hasMinimumBars = barsSinceImpulse >= minBarsInRange
-
-    // Core criteria + optional V5.0 filters
-    isConsolidating = isRangeTight and hasEnoughSwings and highsPriceClustered and lowsPriceClustered and highsTimeClustered and lowsTimeClustered and atrCompressed and hasMinimumBars
-    
-    // Enter consolidation
-    if isConsolidating and not wasConsolidating
-        wasConsolidating := true
-        consolidationStartBar := bar_index - consolidationBars
-        structureState := 0
-        
-        // Define range using clustered swing points (tighter than raw high/low)
-        consolidationRangeHigh := array.max(recentSwingHighs)
-        consolidationRangeLow := array.min(recentSwingLows)
-        
-        // Remove overlapping historical boxes
-        if showHistoricalConsolidation and array.size(historicalConsolidationBoxes) > 0
-            for i = array.size(historicalConsolidationBoxes) - 1 to 0
-                histBox = array.get(historicalConsolidationBoxes, i)
-                histTop = box.get_top(histBox)
-                histBottom = box.get_bottom(histBox)
-                priceOverlap = not (consolidationRangeHigh < histBottom or consolidationRangeLow > histTop)
-                if priceOverlap
-                    box.delete(histBox)
-                    array.remove(historicalConsolidationBoxes, i)
-        
-        // Draw consolidation box
-        if showConsolidationBox
-            if not na(consolidationBox)
-                box.delete(consolidationBox)
-            consolidationBox := box.new(consolidationStartBar, consolidationRangeHigh, 
-                                        bar_index + 10, consolidationRangeLow,
-                                        bgcolor=consolidationColor, 
-                                        border_color=color.gray,
-                                        border_width=1,
-                                        border_style=line.style_dotted)
-    
-    // Exit consolidation (breakout)
-    exitedConsolidation = wasConsolidating and not isConsolidating
-    brokeAbove = wasConsolidating and close > consolidationRangeHigh
-    brokeBelow = wasConsolidating and close < consolidationRangeLow
-    
-    if exitedConsolidation or brokeAbove or brokeBelow
-        if brokeAbove
-            structureState := 1
-        else if brokeBelow
-            structureState := -1
-        
-        wasConsolidating := false
-        
-        if not na(consolidationBox)
-            if showHistoricalConsolidation
-                box.set_right(consolidationBox, bar_index)
-                box.set_bgcolor(consolidationBox, brokenConsolidationColor)
-                box.set_border_color(consolidationBox, color.rgb(80, 80, 80))
-                array.push(historicalConsolidationBoxes, consolidationBox)
-                
-                if array.size(historicalConsolidationBoxes) > maxHistoricalBoxes
-                    oldBox = array.shift(historicalConsolidationBoxes)
-                    box.delete(oldBox)
-            else
-                box.delete(consolidationBox)
-            consolidationBox := na
-    
-    // Update consolidation box while in consolidation
-    if wasConsolidating and showConsolidationBox and not na(consolidationBox)
-        box.set_right(consolidationBox, bar_index + 10)
-        
-        // Update range if new swings extend it slightly
-        if array.size(recentSwingHighs) > 0
-            newHigh = array.max(recentSwingHighs)
-            if newHigh > consolidationRangeHigh
-                consolidationRangeHigh := newHigh
-                box.set_top(consolidationBox, consolidationRangeHigh)
-        
-        if array.size(recentSwingLows) > 0
-            newLow = array.min(recentSwingLows)
-            if newLow < consolidationRangeLow
-                consolidationRangeLow := newLow
-                box.set_bottom(consolidationBox, consolidationRangeLow)
 
 // Liquidity Sweep detection
 bullSweep = showLiqSweeps and not na(confirmedSwingHigh) and high > confirmedSwingHigh and close <= confirmedSwingHigh
@@ -1169,13 +1028,15 @@ if showPullbackZone
             currentFibOrigin := protectedLow
             // Calculate highest high from protected low bar to current bar
             barsFromOrigin = bar_index - protectedLowBar
-            currentFibExtreme := ta.highest(high, barsFromOrigin + 1)
+            safeBarsFromOrigin = math.max(1, math.min(math.min(barsFromOrigin + 1, bar_index), 50))
+            currentFibExtreme := ta.highest(high, safeBarsFromOrigin)
         else
             // Default: Use swing low before the break (traditional approach)
             currentFibOrigin := prevSwingLow
             // Calculate highest high from that origin swing low to current bar
             barsFromOrigin = bar_index - prevLowBar
-            currentFibExtreme := ta.highest(high, barsFromOrigin + 1)
+            safeBarsFromOrigin = math.max(1, math.min(math.min(barsFromOrigin + 1, bar_index), 50))
+            currentFibExtreme := ta.highest(high, safeBarsFromOrigin)
 
         pullbackDirection := 1
         pullbackStartBar := bar_index
@@ -1203,13 +1064,15 @@ if showPullbackZone
             currentFibOrigin := protectedHigh
             // Calculate lowest low from protected high bar to current bar
             barsFromOrigin = bar_index - protectedHighBar
-            currentFibExtreme := ta.lowest(low, barsFromOrigin + 1)
+            safeBarsFromOrigin = math.max(1, math.min(math.min(barsFromOrigin + 1, bar_index), 50))
+            currentFibExtreme := ta.lowest(low, safeBarsFromOrigin)
         else
             // Default: Use swing high before the break (traditional approach)
             currentFibOrigin := prevSwingHigh
             // Calculate lowest low from that origin swing high to current bar
             barsFromOrigin = bar_index - prevHighBar
-            currentFibExtreme := ta.lowest(low, barsFromOrigin + 1)
+            safeBarsFromOrigin = math.max(1, math.min(math.min(barsFromOrigin + 1, bar_index), 50))
+            currentFibExtreme := ta.lowest(low, safeBarsFromOrigin)
 
         pullbackDirection := -1
         pullbackStartBar := bar_index
@@ -1249,29 +1112,33 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
             // Update to highest high since the origin (continues tracking new highs)
             // Use correct origin bar based on which mode is active
             originBar = useProtectedFibOrigin ? protectedLowBar : prevLowBar
-            barsFromOrigin = bar_index - originBar
-            newHigh = ta.highest(high, barsFromOrigin + 1)
-            if newHigh > currentFibExtreme
-                currentFibExtreme := newHigh
-                // Recalculate fib levels with new extreme
-                fibRange = currentFibExtreme - currentFibOrigin
-                currentFib50 := currentFibExtreme - (fibRange * fibUpperLevel)
-                currentFib618 := currentFibExtreme - (fibRange * fibLowerLevel)
-                currentFib786 := currentFibExtreme - (fibRange * fibDeepLevel)
+            if not na(originBar) and originBar >= 0
+                barsFromOrigin = bar_index - originBar
+                safeBarsFromOrigin = math.max(1, math.min(math.min(barsFromOrigin + 1, bar_index), 50))
+                newHigh = ta.highest(high, safeBarsFromOrigin)
+                if newHigh > currentFibExtreme
+                    currentFibExtreme := newHigh
+                    // Recalculate fib levels with new extreme
+                    fibRange = currentFibExtreme - currentFibOrigin
+                    currentFib50 := currentFibExtreme - (fibRange * fibUpperLevel)
+                    currentFib618 := currentFibExtreme - (fibRange * fibLowerLevel)
+                    currentFib786 := currentFibExtreme - (fibRange * fibDeepLevel)
 
         if pullbackDirection == -1
             // Update to lowest low since the origin (continues tracking new lows)
             // Use correct origin bar based on which mode is active
             originBar = useProtectedFibOrigin ? protectedHighBar : prevHighBar
-            barsFromOrigin = bar_index - originBar
-            newLow = ta.lowest(low, barsFromOrigin + 1)
-            if newLow < currentFibExtreme
-                currentFibExtreme := newLow
-                // Recalculate fib levels with new extreme
-                fibRange = currentFibOrigin - currentFibExtreme
-                currentFib50 := currentFibExtreme + (fibRange * fibUpperLevel)
-                currentFib618 := currentFibExtreme + (fibRange * fibLowerLevel)
-                currentFib786 := currentFibExtreme + (fibRange * fibDeepLevel)
+            if not na(originBar) and originBar >= 0
+                barsFromOrigin = bar_index - originBar
+                safeBarsFromOrigin = math.max(1, math.min(math.min(barsFromOrigin + 1, bar_index), 50))
+                newLow = ta.lowest(low, safeBarsFromOrigin)
+                if newLow < currentFibExtreme
+                    currentFibExtreme := newLow
+                    // Recalculate fib levels with new extreme
+                    fibRange = currentFibOrigin - currentFibExtreme
+                    currentFib50 := currentFibExtreme + (fibRange * fibUpperLevel)
+                    currentFib618 := currentFibExtreme + (fibRange * fibLowerLevel)
+                    currentFib786 := currentFibExtreme + (fibRange * fibDeepLevel)
 
         // Check if price is in golden zone
         if pullbackDirection == 1

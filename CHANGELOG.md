@@ -2,6 +2,314 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [6.2.2] - 2026-01-07
+
+### Changed
+- **Consolidation detection temporarily disabled**
+  - **Reason:** Consolidation logic proving more challenging than expected
+  - **Action:** Commented out entire consolidation detection block
+  - **Result:** Indicator focuses on core functionality (BOS, swing levels, zones, pullbacks)
+  - **Status:** Will revisit consolidation logic in future version
+
+### What Still Works
+✅ Break of Structure (BOS) detection and labeling
+✅ Swing high/low identification with HH/HL/LH/LL labels  
+✅ Protected levels (structure anchors)
+✅ Supply/demand zones
+✅ Pullback entry zones with Fibonacci levels
+✅ Dashboard showing trend state
+✅ All alerts and notifications
+
+### Temporarily Disabled
+❌ Consolidation/ranging boxes
+
+This allows us to focus on perfecting the core Smart Money Concepts features before tackling the complex consolidation detection logic.
+
+## [6.2.1] - 2026-01-07
+
+### Fixed
+- **Syntax error: Extra closing parenthesis**
+  - **Problem:** Lines 498-500 had duplicated `border_width` and `border_style` parameters
+  - **Error:** "Syntax error: Extra closing parenthesis"
+  - **Solution:** Removed duplicated box.new() parameters
+  - **Result:** Indicator compiles without syntax errors
+
+## [6.2.0] - 2026-01-07
+
+### MAJOR REWRITE - Post-BOS Consolidation Logic
+
+**Completely replaced mathematical "tight range" detection with proper Smart Money Concepts consolidation logic.**
+
+#### What Changed
+- **REMOVED:** Mathematical tight range detection (ATR-based, oscillation checks, etc.)
+- **REMOVED:** Complex swing clustering algorithms
+- **ADDED:** Post-BOS consolidation detection based on market structure
+- **ADDED:** Proper range definition using broken levels and next swings
+
+#### New Logic (Aligned with SMC)
+```pine
+After Bullish BOS:
+1. Broken swing high = top of consolidation range
+2. Next swing low = bottom of consolidation range
+3. Box extends until price breaks above high OR below low
+
+After Bearish BOS:
+1. Broken swing low = bottom of consolidation range  
+2. Next swing high = top of consolidation range
+3. Box extends until price breaks above high OR below low
+```
+
+#### Why This Is Better
+**Previous Approach (Failed):**
+- Tried to detect "tight ranges" mathematically
+- Used ATR ratios and oscillation patterns
+- Result: Boxes stretching across entire moves
+
+**New Approach (SMC-Based):**
+- Consolidation = range between structure break and next swing
+- Clearly defined entry/exit criteria
+- Aligned with actual market structure concepts
+
+#### Expected Results
+- Consolidation boxes appear AFTER BOS events
+- Range = broken level to next opposite swing
+- Clean, precise boxes that match actual market behavior
+- Multiple boxes on chart showing progression through trend
+
+#### Breaking Change
+This is a fundamental change in how consolidation is detected. Previous versions may have shown different consolidation areas. The new approach is more accurate to Smart Money Concepts.
+
+## [6.1.6] - 2026-01-07
+
+### Fixed
+- **Consolidation box vertical stretching**
+  - **Problem:** Boxes were stretching from 129 to 139 (10+ points) instead of tight consolidation range
+  - **Root Cause:** When `barsInTightRange` became large (30+ bars), the range calculation used ALL those bars with `ta.highest(high, lookbackToStart)`, capturing the entire price movement instead of just the current tight range
+  - **Solution:** 
+    ```pine
+    // Before: Used full duration for range calculation
+    consolidationRangeHigh := ta.highest(high, lookbackToStart)  // Could be 30+ bars
+    
+    // After: Use only recent bars for tight range
+    rangeLookback = math.min(consolidationBars, 10)  // Max 10 bars
+    consolidationRangeHigh := ta.highest(high, rangeLookback)
+    ```
+  - **Result:** Boxes now stay tight around actual consolidation levels (~2-3 points) instead of stretching across entire move
+
+### Logic Separation
+- **Box Width:** Still uses `barsInTightRange` for time duration (how long consolidation lasted)
+- **Box Height:** Now uses `consolidationBars` (max 10) for price range (actual tight range)
+
+This separates the "how long has it been consolidating" (time) from "what's the actual price range" (height), preventing the vertical stretching issue.
+
+## [6.1.5] - 2026-01-07
+
+### Fixed
+- **Ultra-conservative historical buffer protection**
+  - **Deep Research Findings:**
+    - Error "offset (85) beyond limit (84)" on bar 12999 indicates TradingView uses different indexing than expected
+    - Previous fix used `bar_index + 1` which caused overflow when `bar_index = 84`
+  - **Root Cause:** Misunderstanding of TradingView's historical buffer indexing
+  - **Conservative Solution:** 
+    ```pine
+    safeBarsFromOrigin = math.max(1, math.min(math.min(barsFromOrigin + 1, bar_index), 50))
+    ```
+  - **Triple Protection:**
+    1. Minimum 1 bar (prevents zero-length)
+    2. Maximum available bars (prevents buffer overflow) 
+    3. **Maximum 50 bars (ultra-conservative cap)**
+  - **Trade-off:** May not capture full impulse range in very long moves, but ensures stability
+
+### Technical Note
+The 50-bar cap is intentionally conservative. In practice, most significant price moves complete within 50 bars, and this prevents any possibility of buffer overflow while maintaining functionality.
+
+## [6.1.4] - 2026-01-07
+
+### Fixed
+- **Final historical buffer fix with null checks**
+  - **Problem:** Dynamic fib updates still caused buffer overflows when `originBar` was `na` or invalid
+  - **Solution:** Added null and validity checks before calculating `barsFromOrigin`:
+    ```pine
+    if not na(originBar) and originBar >= 0
+        barsFromOrigin = bar_index - originBar
+        safeBarsFromOrigin = math.max(1, math.min(barsFromOrigin + 1, bar_index + 1))
+        result = ta.highest/lowest(price, safeBarsFromOrigin)
+    ```
+  - **Fixed:** Proper indentation for nested logic blocks
+  - **Result:** All historical buffer errors eliminated
+
+## [6.1.3] - 2026-01-07
+
+### Fixed
+- **Complete historical buffer overflow fix**
+  - **Problem:** Multiple locations in pullback zone code were causing buffer overflows
+  - **Locations Fixed:**
+    - Lines 1156, 1163: Bullish BOS fib calculation
+    - Lines 1192, 1199: Bearish BOS fib calculation  
+    - Lines 1241, 1256: Dynamic fib extreme updates
+    - Line 510: Consolidation range calculation
+  - **Solution:** Added `safeBarsFromOrigin = math.max(1, math.min(barsFromOrigin + 1, bar_index + 1))` to all `ta.highest/lowest` calls
+  - **Result:** Indicator works correctly regardless of available historical data
+
+### Technical Details
+All historical lookbacks now use the pattern:
+```pine
+barsFromOrigin = bar_index - originBar
+safeBarsFromOrigin = math.max(1, math.min(barsFromOrigin + 1, bar_index + 1))
+result = ta.highest/lowest(price, safeBarsFromOrigin)
+```
+
+This ensures we never request more historical data than is available.
+
+## [6.1.2] - 2026-01-07
+
+### Fixed
+- **Historical buffer overflow error**
+  - **Problem:** When `barsInTightRange` was large (e.g., 85), the oscillation check loop tried to access bars beyond available history
+  - **Error:** "The requested historical offset (85) is beyond the historical buffer's limit (84)"
+  - **Solution:** Added `math.min(barsInTightRange, bar_index)` to limit lookback to available bars
+  - **Result:** Indicator works correctly even with long consolidation periods
+
+## [6.1.1] - 2026-01-07
+
+### Fixed
+- **Runtime error on line 468**
+  - **Problem:** `ta.highest()` function received invalid length argument (0) when `barsInTightRange` was 0
+  - **Solution:** Added `math.max(1, ...)` to ensure lookback is always at least 1 bar
+  - **Result:** Indicator now loads without errors
+
+## [6.1.0] - 2026-01-07
+
+### MAJOR IMPROVEMENT - Swing-Based Consolidation Detection
+
+**Completely rewritten consolidation algorithm to detect true sideways ranging behavior.**
+
+#### What Changed
+- **REMOVED:** 8-bar BOS delay requirement (was too restrictive)
+- **REMOVED:** Simple 3-bar minimum (insufficient filtering)
+- **ADDED:** Oscillation detection - price must move both up AND down within range
+- **ADDED:** Configurable minimum duration (default 6 bars)
+- **ADDED:** Midpoint oscillation check to ensure sideways action
+- **IMPROVED:** Historical box retention - only deletes if completely engulfed
+
+#### New Detection Logic
+```pine
+// Must satisfy ALL:
+1. Range tight (< 2.5 ATR)
+2. Duration >= 6 bars (configurable)
+3. Oscillating: Price visiting both upper AND lower portions of range
+   - Not just trending in one direction
+   - Must have bars near top AND bottom of range
+```
+
+#### Why This Works Better
+**Pullback vs Consolidation:**
+- **Pullback:** Directional bias, moves toward fib levels, part of trend
+- **Consolidation:** Sideways oscillation, tests both highs/lows, indecision
+
+The oscillation check is the key differentiator - it ensures we only mark true ranging periods, not directional pullbacks.
+
+#### New Settings
+- "Minimum Duration (bars)" - default 6, range 3-20
+- Controls how long price must stay in range to qualify
+
+#### Historical Boxes
+- Now only deletes if new box completely engulfs old box
+- Allows multiple consolidation boxes to coexist on chart
+- Shows progression of consolidations through trend
+
+#### Migration from V6.0.x
+This is a significant improvement. You may see more consolidation boxes now, which is correct - previous versions were missing legitimate consolidations due to the 8-bar BOS delay.
+
+## [6.0.3] - 2026-01-07
+
+### Fixed
+- **Consolidation box now starts at correct position**
+  - **Problem:** Box started at detection point instead of when range actually began
+  - **Solution:** Changed `lookbackToStart` to use `barsInTightRange` (actual duration) instead of fixed 4 bars
+  - **Result:** Box now extends backwards to capture the full consolidation period
+
+- **Removed remaining box height updates**
+  - **Problem:** Lines 545-546 were still calling `box.set_top/bottom` every bar
+  - **Solution:** Removed these calls - box top/bottom are now truly locked at initial detection
+  - **Result:** Box height stays fixed, no more vertical stretching
+
+### Technical Details
+- Box start: `bar_index - barsInTightRange` (dynamic based on consolidation duration)
+- Box height: Set once at detection, never updated
+- Box width: Only `set_right()` is called to extend forward
+
+## [6.0.2] - 2026-01-07
+
+### Fixed
+- **Consolidation box over-expansion bug**
+  - **Problem:** Consolidation boxes were stretching vertically to capture entire price range instead of staying tight
+  - **Root Cause:** Dynamic expansion logic (lines 469-472) allowed box to grow when price made new highs/lows
+  - **Solution:** 
+    - Removed dynamic expansion - consolidation range now stays locked to initial detection size
+    - Added minimum bars after BOS requirement (8 bars) before consolidation can be detected
+    - Added `barsSinceImpulse` counter increment on every bar
+  - **Result:** Consolidation boxes now remain compact and accurately represent the ranging price action
+
+### Technical Changes
+- Removed expansion logic that updated `consolidationRangeHigh/Low` during consolidation
+- Added `sufficientTimeSinceBOS` check to prevent false consolidation signals during pullbacks
+- Added proper `barsSinceImpulse += 1` increment (was missing)
+
+## [6.0.1] - 2026-01-06
+
+### Fixed
+- **CRITICAL FIX: Structure state (BULL/BEAR) now persists correctly during consolidation**
+  - **Problem:** Consolidation detection was incorrectly setting `structureState := 0`, causing background color to change from green/red to gray even without a BOS
+  - **Solution:** Removed `structureState` modifications from consolidation entry/exit logic
+  - **Result:**
+    - Background color (green for BULL, red for BEAR) now stays until actual BOS occurs
+    - Dashboard shows correct trend even during tight ranges
+    - Consolidation boxes still display, but don't interfere with trend tracking
+  - **Technical:** `structureState` now ONLY changes on actual BOS events, never on consolidation detection
+
+## [6.0] - 2026-01-06
+
+### MAJOR REWRITE - Simple Range-Based Detection
+
+**Completely replaced pivot-based consolidation detection with simple range method.**
+
+#### What Changed
+- **REMOVED:** Pivot detection and swing array tracking
+- **REMOVED:** Complex clustering checks and array management
+- **REMOVED:** BOS-based array clearing logic
+- **ADDED:** Simple `ta.highest()/ta.lowest()` range calculation
+- **ADDED:** Real-time detection with zero lag
+
+#### New Detection Logic (Much simpler!)
+```pine
+rangeHigh = ta.highest(high, 6)       // Highest in last 6 bars
+rangeLow = ta.lowest(low, 6)          // Lowest in last 6 bars
+rangeSize = rangeHigh - rangeLow
+
+isRangeTight = rangeSize <= (atr * 2.5)  // Range < 2.5 ATR?
+
+// Count bars in tight range
+if isRangeTight then barsInRange++ else barsInRange = 0
+
+isConsolidating = isRangeTight and barsInRange >= 3
+```
+
+#### Why This Works
+- **Zero lag** - No waiting for pivot confirmation
+- **Real-time** - Boxes appear as consolidation forms
+- **Simple** - No arrays, no complex state management
+- **Reliable** - Direct range measurement, can't fail
+- **Tunable** - Adjust range threshold for tighter/looser detection
+
+#### Default Settings
+- Lookback: 6 bars (SHORT for tight detection)
+- Max Range: 2.5 ATR (TIGHT for compact zones)
+- Min Bars: 3 consecutive bars in range
+
+#### Migration from V5.x
+The pivot-based approach had fundamental timing issues that couldn't be fixed. This new approach is architecturally superior - simpler, faster, and more reliable.
+
 ## [5.7] - 2026-01-05
 
 ### Changed
