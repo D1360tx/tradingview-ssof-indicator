@@ -2,6 +2,72 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [7.0.0-alpha] - 2026-01-08
+
+### 🚨 MAJOR BREAKING CHANGE - Structure Logic Overhaul
+
+**This version fundamentally changes how BOS and structure states are determined. Users may see significantly different BOS labels compared to V6.x.**
+
+#### The 3 Critical Fixes
+
+**1. Dynamic Impulse Container Updates**
+- **Before:** Impulse range was set only at BOS moment and never updated
+- **After:** Impulse container now extends dynamically on every bar
+  - Bullish: `impulseHigh = max(impulseHigh, high)` on every bar
+  - Bearish: `impulseLow = min(impulseLow, low)` on every bar
+- **Impact:** Internal filter now has accurate bounds for break classification
+
+**2. Symmetric Internal Structure Filter**
+- **Before:** Internal check was asymmetric (only checked in opposite structure state)
+- **After:** Simple symmetric test: `impulseLow < close < impulseHigh = internal`
+- **Impact:** Both bullish AND bearish breaks properly evaluated against same impulse bounds
+
+**3. Protected-Level-Only State Flips**
+- **Before:** Structure could flip on any non-internal BOS
+- **After:** Reversals (opposite-bias breaks) require protected level breach
+  - `BULL → BEAR` only when `close < protectedLow`
+  - `BEAR → BULL` only when `close > protectedHigh`
+  - Same-bias continuations can extend container without protected level breach
+- **Impact:** No more premature trend flips during retracements
+
+#### How Structure Works Now (V7.0 SMC-Aligned)
+
+```
+After Bullish BOS at swing high:
+  - protectedLow = lowest low in lookback
+  - impulseLow = protectedLow (fixed)
+  - impulseHigh = high (extends on each new high)
+  
+  Subsequent breaks:
+  - If close > impulseLow AND close < impulseHigh → INTERNAL (no BOS label)
+  - If close < protectedLow → BEARISH BOS (structure flips to BEAR)
+  - If close > impulseHigh (new high) → extends container, no label needed
+```
+
+#### Validation Checklist
+- ✅ Green "bullish BOS" cannot print below current impulseHigh when structure = BEAR
+- ✅ Red "bearish BOS" cannot print above current impulseLow when structure = BULL
+- ✅ Impulse extremes extend on each new extreme while bias is active
+- ✅ Bias flips only on protected-level breach; never on internal breaks
+
+#### Migration Notes
+- **Breaking change:** BOS labels will appear in different locations than V6.x
+- **Why:** V6.x had incorrect logic that promoted internal breaks to full BOS
+- **Revert:** If issues arise, checkout tag `v6.2.3` to restore previous behavior:
+  ```
+  git checkout v6.2.3
+  ```
+
+#### Technical Details
+- Spec document: `STRUCTURE_LOGIC_FIX_SPEC.md`
+- Plan document: `Structure_Logic_Plan.md`
+- Key code sections modified:
+  - Lines 320-330: Internal filter (symmetric container test)
+  - Lines 346-366: BOS determination (protected-level gating)
+  - Lines 454-465: Dynamic impulse updates (new section)
+
+---
+
 ## [6.2.3] - 2026-01-08
 
 ### Changed

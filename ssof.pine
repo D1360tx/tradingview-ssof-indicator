@@ -3,7 +3,7 @@
 // GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V6.2.3", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V7.0.0-alpha", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -317,18 +317,16 @@ rawBearishBOS = not na(confirmedSwingLow) and bodyClosesBelow(confirmedSwingLow)
 bosBodySize = math.abs(close - open)
 bosIsStrong = bosBodySize > (atrValue * strongBOSThreshold)
 
-// ─────────────────────────── Internal Structure Filter (A5) ───────────────────
-// Check if break is inside impulse range
+// ─────────────────────────── Internal Structure Filter (A5) - V7.0 REWRITE ───────────────────
+// SYMMETRIC CONTAINER-BASED TEST: Any break inside [impulseLow, impulseHigh] is internal
+// This applies to BOTH bullish and bearish breaks regardless of current structure state
 isInsideImpulseRange = false
 if useInternalFilter and not na(impulseHigh) and not na(impulseLow)
-    if rawBullishBOS
-        // Bullish BOS is internal if we're still within the bearish impulse range
-        if structureState == -1 and close < impulseHigh
-            isInsideImpulseRange := true
-    if rawBearishBOS
-        // Bearish BOS is internal if we're still within the bullish impulse range
-        if structureState == 1 and close > impulseLow
-            isInsideImpulseRange := true
+    // Simple symmetric test: if the breaking price (close) is inside the impulse container,
+    // this is an internal break and should NOT flip structure or emit a BOS label
+    breakPrice = close
+    if breakPrice > impulseLow and breakPrice < impulseHigh
+        isInsideImpulseRange := true
 
 // Internal break detection (for labeling)
 internalBullBreak = rawBullishBOS and isInsideImpulseRange
@@ -343,17 +341,27 @@ if useProtectedLevels
     if structureState == -1 and not na(protectedHigh) and close > protectedHigh
         protectedLevelBroken := true
 
-// ─────────────────────────── Final BOS Determination ──────────────────────────
-// Apply filters to determine valid BOS
+// ─────────────────────────── Final BOS Determination - V7.0 REWRITE ──────────────────────────
+// V7.0: BOS is valid only if:
+// 1. Raw break detected AND
+// 2. NOT inside impulse range (not internal) AND
+// 3. Either same-bias continuation OR protected level broken for reversal
+
+// Start with raw breaks filtered by internal check
 bullishBOS = rawBullishBOS and not isInsideImpulseRange
 bearishBOS = rawBearishBOS and not isInsideImpulseRange
 
-// If protected levels are enabled, also allow BOS on protected level break
-if useProtectedLevels and protectedLevelBroken
-    if structureState == 1 and close < protectedLow
-        bearishBOS := true
-    if structureState == -1 and close > protectedHigh
-        bullishBOS := true
+// V7.0: For OPPOSITE-BIAS breaks (reversals), require protected level breach
+// Same-bias breaks (continuations) can extend the impulse without protected level breach
+if useProtectedLevels
+    // Bullish break while in BEARISH structure = reversal, needs protected level breach
+    if bullishBOS and structureState == -1
+        if not protectedLevelBroken
+            bullishBOS := false  // Can't flip without breaking protected high
+    // Bearish break while in BULLISH structure = reversal, needs protected level breach  
+    if bearishBOS and structureState == 1
+        if not protectedLevelBroken
+            bearishBOS := false  // Can't flip without breaking protected low
 
 // ─────────────────────────── Structure State Update ───────────────────────────
 // Track previous state
@@ -453,6 +461,19 @@ if bearishBOS
 // Increment bars since last BOS (unless currently in BOS)
 if not bullishBOS and not bearishBOS
     barsSinceImpulse += 1
+
+// ─────────────────────────── Dynamic Impulse Container Updates - V7.0 ──────────────────────────
+// On EVERY bar, extend the impulse container in the direction of the current trend
+// This ensures the internal filter always has accurate bounds for break classification
+if structureState == 1 and not na(impulseHigh)
+    // Bullish: Extend impulse high as price makes new highs
+    impulseHigh := math.max(impulseHigh, high)
+    // Note: impulseLow (protected low) stays fixed until structure flips
+
+if structureState == -1 and not na(impulseLow)
+    // Bearish: Extend impulse low as price makes new lows
+    impulseLow := math.min(impulseLow, low)
+    // Note: impulseHigh (protected high) stays fixed until structure flips
 
 // Liquidity Sweep detection
 bullSweep = showLiqSweeps and not na(confirmedSwingHigh) and high > confirmedSwingHigh and close <= confirmedSwingHigh

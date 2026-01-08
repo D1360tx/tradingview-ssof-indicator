@@ -10,7 +10,7 @@
 
 **Primary Use Case:** Diego trades Silver/USD (XAG/USD) on 1H timeframe, holding positions 5 minutes to 8 hours.
 
-**Current Version:** V5.0
+**Current Version:** V7.0.0-alpha (Major Structure Logic Overhaul)
 
 ---
 
@@ -81,6 +81,16 @@ confirmedHighBar / confirmedLowBar      // Bar indices of pivots
 ```pine
 protectedLow   // In bullish structure, losing this = structure break
 protectedHigh  // In bearish structure, losing this = structure break
+```
+
+#### Impulse Container (V7.0 - Critical for Internal Filter)
+```pine
+impulseHigh  // Upper bound of current impulse - extends dynamically on each new high (bullish)
+impulseLow   // Lower bound of current impulse - extends dynamically on each new low (bearish)
+lastImpulseBar  // Bar index when impulse started
+
+// V7.0 Key Rule: 
+// Any break where impulseLow < close < impulseHigh is INTERNAL and won't flip structure
 ```
 
 #### Consolidation
