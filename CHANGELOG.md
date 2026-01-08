@@ -30,6 +30,19 @@ All notable changes to the SSOF indicator will be documented in this file.
   - Same-bias continuations can extend container without protected level breach
 - **Impact:** No more premature trend flips during retracements
 
+#### Added
+
+**Show Internal Structure Zones (Optional)**
+- New toggle: "Show Internal Structure Zones?" in Internal Structure Filter group (defaults OFF)
+- When enabled, creates supply/demand zones at internal breaks for reference
+- Visual distinction from true BOS zones:
+  - Dimmer background (95% transparency vs 85%)
+  - Dotted border instead of solid
+  - Different labels: "iDEMAND" and "iSUPPLY"
+  - Lighter text color
+- **Why:** V7.0 filters internal breaks correctly, so fewer zones appear by default. This toggle lets you see those internal levels if needed for reference.
+- **Recommendation:** Leave OFF for cleanest chart. Enable only if you want to see all structure levels.
+
 #### How Structure Works Now (V7.0 SMC-Aligned)
 
 ```
