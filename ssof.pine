@@ -895,9 +895,8 @@ if createDemandZone
                 label.delete(oldZone.zoneLabel)
 
 // V7.0: Optional Internal Demand Zone (at internal bullish breaks)
+// Internal zones IGNORE direction filter - they're reference zones, so show in both BULL and BEAR
 createInternalDemandZone = showZones and showInternalZones and internalBullBreak and not na(confirmedSwingLow) and not na(confirmedLowBar)
-if zoneDirectionFilter
-    createInternalDemandZone := createInternalDemandZone and structureState == 1
 
 if createInternalDemandZone
     hasFVG = detectBullishFVG(5)
@@ -983,9 +982,8 @@ if createSupplyZone
                 label.delete(oldZone.zoneLabel)
 
 // V7.0: Optional Internal Supply Zone (at internal bearish breaks)
+// Internal zones IGNORE direction filter - they're reference zones, so show in both BULL and BEAR
 createInternalSupplyZone = showZones and showInternalZones and internalBearBreak and not na(confirmedSwingHigh) and not na(confirmedHighBar)
-if zoneDirectionFilter
-    createInternalSupplyZone := createInternalSupplyZone and structureState == -1
 
 if createInternalSupplyZone
     hasFVG = detectBearishFVG(5)

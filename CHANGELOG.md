@@ -41,6 +41,7 @@ All notable changes to the SSOF indicator will be documented in this file.
   - Different labels: "iDEMAND" and "iSUPPLY"
   - Lighter text color
 - **Why:** V7.0 filters internal breaks correctly, so fewer zones appear by default. This toggle lets you see those internal levels if needed for reference.
+- **Behavior:** Internal zones IGNORE the "Filter Zones by Trend?" setting and show in both BULL and BEAR structures (since they're reference zones, not actionable trades).
 - **Recommendation:** Leave OFF for cleanest chart. Enable only if you want to see all structure levels.
 
 #### How Structure Works Now (V7.0 SMC-Aligned)
