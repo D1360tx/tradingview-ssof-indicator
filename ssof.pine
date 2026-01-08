@@ -1,6 +1,6 @@
 // This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © SSOF - Smart Structure & Order Flow
-// GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
+// GitHub: https://github.com/d1360tx/tradingview-ssof-indicator
 
 //@version=6
 indicator("Smart Structure & Order Flow [SSOF] V7.0.0-alpha", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
