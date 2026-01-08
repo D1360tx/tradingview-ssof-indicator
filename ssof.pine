@@ -3,7 +3,7 @@
 // GitHub: https://github.com/diegofinni/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V6.2.2 - Consolidation Disabled", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V6.2.3", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -83,7 +83,7 @@ fibUpperLevel = input.float(0.5, "Fib Upper Level", minval=0.1, maxval=0.9, step
 fibLowerLevel = input.float(0.618, "Fib Lower Level", minval=0.1, maxval=0.9, step=0.01, group=grpPullback, tooltip="Lower boundary of golden zone (deeper retracement)")
 fibDeepLevel = input.float(0.786, "Fib Deep Level (Discount)", minval=0.5, maxval=0.95, step=0.01, group=grpPullback, tooltip="Deeper discount zone - higher risk/reward")
 showDeepZone = input.bool(false, "Show Deep Discount Zone?", group=grpPullback, tooltip="Show the deeper 0.618-0.786 zone")
-goldenZoneColorBull = input.color(color.rgb(0, 200, 100, 80), "Bullish Golden Zone Color", group=grpPullback)
+goldenZoneColorBull = input.color(color.rgb(255, 215, 0, 80), "Bullish Golden Zone Color", group=grpPullback)
 goldenZoneColorBear = input.color(color.rgb(255, 140, 0, 80), "Bearish Golden Zone Color", group=grpPullback)
 deepZoneColor = input.color(color.rgb(255, 100, 100, 85), "Deep Zone Color", group=grpPullback)
 useProtectedFibOrigin = input.bool(false, "Use Protected Low/High for Fib Origin?", group=grpPullback, tooltip="When enabled, Fibonacci uses the absolute lowest/highest point in the impulse (Protected Level) instead of the swing pivot. This provides maximum accuracy for true impulse measurement. Default uses swing pivot (traditional approach).")
@@ -1212,9 +1212,9 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
         
         if pullbackDirection == 1
             currentGoldenColor := goldenZoneColorBull
-            borderColor := color.rgb(0, 200, 100)  // Green border for bullish
+            borderColor := color.rgb(255, 215, 0)  // Gold border for bullish
             if inGoldenZone
-                currentGoldenColor := color.new(color.lime, 70)  // Highlight when price is in zone
+                currentGoldenColor := color.new(color.yellow, 70)  // Highlight when price is in zone
         else
             currentGoldenColor := goldenZoneColorBear
             borderColor := color.rgb(255, 140, 0)  // Orange border for bearish

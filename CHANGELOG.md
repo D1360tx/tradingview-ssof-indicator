@@ -2,6 +2,16 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [6.2.3] - 2026-01-08
+
+### Changed
+- **Pullback golden zone colors updated**
+  - **Bullish zones:** Changed from green to yellow/gold (`rgb(255, 215, 0)`)
+  - **Bearish zones:** Remain orange (`rgb(255, 140, 0)`)
+  - **Border colors:** Updated to match zone colors (gold for bullish, orange for bearish)
+  - **Highlight state:** When price enters bullish golden zone, highlights in yellow instead of lime
+  - **Rationale:** Better visual distinction between structure colors (green/red) and entry zones (gold/orange)
+
 ## [6.2.2] - 2026-01-07
 
 ### Changed
