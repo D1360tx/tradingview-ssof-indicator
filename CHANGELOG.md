@@ -2,6 +2,193 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
+## [7.0.1-alpha] - 2026-01-09 @ 12:50 CST ⭐ **CURRENT STABLE**
+
+### 🎯 CRITICAL SMC FIXES - Protected Levels & Reversal Detection
+
+**This version fixes major issues with protected level calculation and reversal BOS detection based on ICT/SMC research.**
+
+#### Fixed: Reversal BOS Now Triggers on Protected Level Break
+
+**MAJOR FIX:** Structure reversals now occur at the correct moment per SMC principles.
+
+**Problem (Before):**
+- Reversal required BOTH: `rawBullishBOS` AND `protectedLevelBroken` at same time
+- `rawBullishBOS` = crossing above a swing high (e.g., 78.26)
+- `protectedLevelBroken` = close > protectedHigh (e.g., 79.03)
+- These happen on DIFFERENT BARS, so reversal never triggered
+- Example: Silver rallied from 73.84 to 80.36, broke protected level at 79.03, but structure stayed BEAR
+
+**SMC Correct Logic:**
+- Breaking the protected level IS the structure invalidation
+- No need to also cross a swing high at the same moment
+- Protected level break = BOS and structure flip
+
+**Fix:**
+```pine
+// Detect first break of protected level (crossover)
+protectedHighBroken = bearish AND close > protectedHigh AND close[1] <= protectedHigh
+bullishBOS = ... or protectedHighBroken  // Direct reversal
+```
+
+**Impact:**
+- Structure now flips the moment protected level is breached
+- Aligns with SMC principle: protected level break = structure invalidation
+- Silver 15m example now correctly flips to BULL when breaking above protected high
+
+---
+
+#### Fixed: Protected Levels Now Use Most Recent Swing (SMC Correct)
+
+**RESEARCH-BASED FIX:** Protected levels now defined per ICT/SMC methodology.
+
+**Research Findings:**
+- "The swing low prior to BOS becomes the protected low"
+- "Every HL that successfully leads to a BOS becomes protected"
+- Protected levels should TRAIL with each continuation BOS
+
+**Before (Incorrect):**
+```pine
+protectedLow := swingLowAtHighConfirm  // Swing when HIGH was confirmed
+```
+- Could be an older swing, not the most recent HL
+- Didn't trail properly with continuation BOS
+
+**After (SMC Correct):**
+```pine
+protectedLow := confirmedSwingLow  // Most recent swing low at BOS time
+```
+- IS "the swing low prior to BOS"
+- Automatically trails up with each continuation BOS
+
+**Impact:**
+- Protected low = HL that DIRECTLY preceded/enabled the current BOS
+- Protected levels update with each continuation, staying current
+- Proper SMC alignment for structure invalidation
+
+---
+
+#### Fixed: Protected Levels Trail with Structure-Confirming Swings
+
+**MAJOR FIX:** Protected levels now update when new swings confirm existing structure.
+
+**Problem (TSLA Example):**
+- Bearish structure with LLs at 435 → 429 → 424
+- Protected High stuck at 457.55 (from old structure)
+- Price rallied from 424 and broke above ~438 swing high
+- No bullish reversal because protected high never updated
+- Correct protected high should be ~438 (LH before last LL)
+
+**Root Cause:**
+- Protected levels only updated on BOS events
+- Continuation BOS timing often missed due to crossover detection
+- New swings confirmed existing structure but didn't update levels
+
+**Fix - Trailing Logic:**
+```pine
+// Bullish structure: Trail protected low UP with Higher Lows
+if structureState == 1 and not na(swingLow)
+    if swingLow > protectedLow
+        protectedLow := swingLow  // Trail up!
+
+// Bearish structure: Trail protected high DOWN with Lower Highs  
+if structureState == -1 and not na(swingHigh)
+    if swingHigh < protectedHigh
+        protectedHigh := swingHigh  // Trail down!
+```
+
+**Impact:**
+- Protected levels stay current with each new structure-confirming swing
+- TSLA: Protected High trails down to ~438, enabling correct bullish reversal
+- Proper SMC behavior: protected level = most recent structural swing
+
+---
+
+#### Fixed: Immediate Continuation BOS for Strong Trending Markets
+
+**MAJOR FIX:** BOS now triggers in strong trends where price is already beyond newly confirmed swings.
+
+**Problem:**
+- Standard BOS: `close > swingHigh AND close[1] <= swingHigh` (crossover)
+- In strong trends, by the time swing is confirmed (swingLength bars later), price is WAY beyond it
+- Crossover never happens, no BOS triggers, protected level never updates
+- Example: Silver showing Prot: 49.35 (180 bars old!) instead of ~70.86
+
+**Fix - Immediate Trend Continuation:**
+```pine
+// If new swing high just confirmed AND bullish AND price already above it
+trendContinuationBull = not na(swingHigh) and structureState == 1 and close > swingHigh
+rawBullishBOS := rawBullishBOS or trendContinuationBull
+```
+
+**Impact:**
+- Every swing high in uptrend triggers continuation BOS when confirmed
+- Protected level updates with each new higher low
+- Fib zone recalculates to current impulse leg
+- Works in both directions (bull and bear)
+
+---
+
+#### Fixed: Internal Break Labels & Lines Now Use Directional Colors
+
+**UI Enhancement:**
+- Internal BOS labels now use bullish/bearish colors instead of yellow
+- iBOS↑ (bullish internal): Green label + green dotted line
+- iBOS↓ (bearish internal): Red label + red dotted line
+- Dotted lines extend from swing bar to current bar + 10
+- Makes internal breaks easier to distinguish while showing directional bias
+
+---
+
+#### Fixed: Protected Level Lines Now Visible and Dynamic
+
+**Two Issues Fixed:**
+
+1. **Line Start Bar Too Old:**
+   - protectedLowBar could be from a swing 500+ bars ago (outside visible chart)
+   - Fix: `lineStartBar = max(protectedBar, bar_index - 200)`
+   - Lines now start within visible range (max 200 bars back)
+
+2. **Line Y Position Not Updating:**
+   - When protected level value changed, only x2 was updated
+   - Fix: Also update y1, y2, and label.set_y
+   - Lines now stay synced with dashboard value
+
+---
+
+#### Fixed: Developing Level Lines Cleanup Bug
+
+**BUG:** Developing level lines persisted after disabling setting.
+
+**Problem:**
+- Cleanup code was inside `if showDevelopingLevels` block
+- When setting disabled, entire block skipped, lines never deleted
+
+**Fix:**
+- Added `else` block that deletes lines when setting is OFF
+- Lines now properly disappear when toggled off
+
+---
+
+### Summary: Why V7.0.1 is "CURRENT STABLE"
+
+**Critical Improvements:**
+1. ✅ Structure reversals trigger at correct moment (protected level break)
+2. ✅ Protected levels use SMC-correct definition (most recent swing)
+3. ✅ Protected levels trail with structure-confirming swings
+4. ✅ Continuation BOS works in strong trending markets
+5. ✅ All visual elements properly styled and functional
+
+**Testing Confirmed:**
+- Silver 4H: Correct BOS detection and protected level updates
+- Silver 15m: Structure flip on protected level break
+- TSLA 15m: Protected high trails down with lower highs
+- XAGUSD 1H: Immediate continuation BOS in strong uptrend
+
+All code committed to `feature/structure-logic-v7` branch.
+
+---
+
 ## [7.0.0-alpha] - 2026-01-08 @ 21:30 CST
 
 ### 🚨 MAJOR BREAKING CHANGE - Structure Logic Overhaul

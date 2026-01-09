@@ -3,8 +3,10 @@
 A comprehensive TradingView indicator for market structure analysis and high-probability trade identification.
 
 ![Pine Script](https://img.shields.io/badge/Pine%20Script-v6-green)
-![Version](https://img.shields.io/badge/version-4.8-blue)
+![Version](https://img.shields.io/badge/version-7.0.1--alpha-blue)
 ![License](https://img.shields.io/badge/license-MPL%202.0-orange)
+
+> **⭐ Current Stable: V7.0.1-alpha** - See [CHANGELOG.md](CHANGELOG.md) for critical SMC fixes to protected levels and reversal detection.
 
 ## Features
 
