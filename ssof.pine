@@ -635,17 +635,31 @@ if showInternalStructure and not na(internalLow)
 
 // ─────────────────────── Internal Break Labels (A5) ───────────────────────────
 if showInternalBreaks and internalBullBreak
+    // Draw dotted line at the internal break level
+    if not na(confirmedHighBar)
+        line.new(confirmedHighBar, confirmedSwingHigh, bar_index + 10, confirmedSwingHigh, 
+                 color=color.new(bullColor, 50), 
+                 width=1, 
+                 style=line.style_dotted)
+    
     label.new(bar_index, high, "iBOS↑", 
               style=label.style_label_down, 
-              color=color.new(internalColor, 70), 
-              textcolor=internalColor, 
+              color=color.new(bullColor, 70), 
+              textcolor=bullColor, 
               size=size.tiny)
 
 if showInternalBreaks and internalBearBreak
+    // Draw dotted line at the internal break level
+    if not na(confirmedLowBar)
+        line.new(confirmedLowBar, confirmedSwingLow, bar_index + 10, confirmedSwingLow, 
+                 color=color.new(bearColor, 50), 
+                 width=1, 
+                 style=line.style_dotted)
+    
     label.new(bar_index, low, "iBOS↓", 
               style=label.style_label_up, 
-              color=color.new(internalColor, 70), 
-              textcolor=internalColor, 
+              color=color.new(bearColor, 70), 
+              textcolor=bearColor, 
               size=size.tiny)
 
 // Trap warnings
