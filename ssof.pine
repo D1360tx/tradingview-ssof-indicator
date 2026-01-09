@@ -518,6 +518,27 @@ if structureState == -1 and not na(impulseLow)
     impulseLow := math.min(impulseLow, low)
     // Note: impulseHigh (protected high) stays fixed until structure flips
 
+// ─────────────────────────── Protected Level Trailing - V7.0 SMC ──────────────────────────
+// Per SMC: Protected levels should TRAIL with structure-confirming swings
+// When a new swing confirms existing structure, update the protected level
+// This ensures reversal detection uses the correct, current level
+
+// Bullish structure: Trail protected low UP when new Higher Low is confirmed
+if structureState == 1 and not na(swingLow)
+    // New swing low detected - check if it's a Higher Low (confirms bullish structure)
+    if swingLow > protectedLow
+        protectedLow := swingLow
+        protectedLowBar := bar_index - swingLength
+        impulseLow := swingLow  // Also update impulse origin
+
+// Bearish structure: Trail protected high DOWN when new Lower High is confirmed
+if structureState == -1 and not na(swingHigh)
+    // New swing high detected - check if it's a Lower High (confirms bearish structure)
+    if swingHigh < protectedHigh
+        protectedHigh := swingHigh
+        protectedHighBar := bar_index - swingLength
+        impulseHigh := swingHigh  // Also update impulse origin
+
 // Liquidity Sweep detection
 bullSweep = showLiqSweeps and not na(confirmedSwingHigh) and high > confirmedSwingHigh and close <= confirmedSwingHigh
 bearSweep = showLiqSweeps and not na(confirmedSwingLow) and low < confirmedSwingLow and close >= confirmedSwingLow
