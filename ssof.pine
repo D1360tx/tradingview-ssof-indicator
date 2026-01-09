@@ -372,21 +372,25 @@ if useProtectedLevels
 // V7.0: BOS valid when:
 // - INITIAL STATE (neutral): Any raw BOS establishes direction
 // - SAME-BIAS CONTINUATIONS: Always valid if raw break detected (extends impulse)
-// - OPPOSITE-BIAS REVERSALS: Only valid if protected level broken AND not inside impulse range
+// - OPPOSITE-BIAS REVERSALS: Protected level break IS the BOS (no swing crossover needed)
 
 // Determine break context
 isNeutral = structureState == 0  // Initial/no established structure yet
 isBullContinuation = rawBullishBOS and structureState == 1   // Bullish BOS while already bullish
 isBearContinuation = rawBearishBOS and structureState == -1  // Bearish BOS while already bearish
-isBullReversal = rawBullishBOS and structureState == -1      // Bullish BOS while bearish
-isBearReversal = rawBearishBOS and structureState == 1       // Bearish BOS while bullish
+
+// V7.0 FIX: For REVERSALS, breaking the protected level IS the structure flip
+// Per SMC: Protected level break = structure invalidation = BOS
+// We check for FIRST break of protected level (crossover, not just being above/below)
+protectedHighBroken = structureState == -1 and not na(protectedHigh) and close > protectedHigh and close[1] <= protectedHigh
+protectedLowBroken = structureState == 1 and not na(protectedLow) and close < protectedLow and close[1] >= protectedLow
 
 // Apply rules:
 // - Initial state: Any raw BOS is valid (establishes structure)
 // - Continuations: Always valid (extend impulse)
-// - Reversals: Need protected level broken and not inside impulse range
-bullishBOS = (isNeutral and rawBullishBOS) or isBullContinuation or (isBullReversal and protectedLevelBroken and not isInsideImpulseRange)
-bearishBOS = (isNeutral and rawBearishBOS) or isBearContinuation or (isBearReversal and protectedLevelBroken and not isInsideImpulseRange)
+// - Reversals: Protected level break triggers BOS (or rawBOS + protectedBroken for internal breaks that also break protected)
+bullishBOS = (isNeutral and rawBullishBOS) or isBullContinuation or protectedHighBroken
+bearishBOS = (isNeutral and rawBearishBOS) or isBearContinuation or protectedLowBroken
 
 // ─────────────────────────── Structure State Update ───────────────────────────
 // Track previous state
