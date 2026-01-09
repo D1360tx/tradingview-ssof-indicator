@@ -1201,9 +1201,26 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
         pullbackDirection := 0
         currentFibOrigin := na
     else
-        // V7.0: Dynamic updates removed - impulseHigh/Low already update every bar
-        // The fib extreme IS the impulse boundary, which updates continuously
-        // No need for separate lookback logic
+        // V7.0: Dynamically sync fib extreme with impulse values
+        // impulseHigh/Low update every bar as the impulse extends (per spec H1/H2)
+        // The fib must track these updates to capture new extremes like the 80,600 low
+        if pullbackDirection == 1
+            currentFibExtreme := impulseHigh  // Sync with dynamic impulse high
+            // Recalc fib levels
+            fibRange = currentFibExtreme - currentFibOrigin
+            if fibRange > 0
+                currentFib50 := currentFibExtreme - (fibRange * fibUpperLevel)
+                currentFib618 := currentFibExtreme - (fibRange * fibLowerLevel)
+                currentFib786 := currentFibExtreme - (fibRange * fibDeepLevel)
+        
+        if pullbackDirection == -1
+            currentFibExtreme := impulseLow  // Sync with dynamic impulse low
+            // Recalc fib levels
+            fibRange = currentFibOrigin - currentFibExtreme
+            if fibRange > 0
+                currentFib50 := currentFibExtreme + (fibRange * fibUpperLevel)
+                currentFib618 := currentFibExtreme + (fibRange * fibLowerLevel)
+                currentFib786 := currentFibExtreme + (fibRange * fibDeepLevel)
 
         // Check if price is in golden zone
         if pullbackDirection == 1
