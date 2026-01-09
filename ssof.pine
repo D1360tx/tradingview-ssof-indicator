@@ -321,8 +321,24 @@ var box consolidationBox = na
 var bool lastBOSStrong = false
 
 // Raw BOS detection (before filters)
+// Standard: Crossover above/below swing level
 rawBullishBOS = not na(confirmedSwingHigh) and bodyClosesAbove(confirmedSwingHigh) and close[1] <= confirmedSwingHigh
 rawBearishBOS = not na(confirmedSwingLow) and bodyClosesBelow(confirmedSwingLow) and close[1] >= confirmedSwingLow
+
+// V7.0 FIX: Immediate continuation BOS for strong trending markets
+// Problem: In strong trends, by the time a swing is confirmed (swingLength bars later),
+// price is already way beyond it, so the crossover condition never triggers.
+// Solution: If we're already in bullish/bearish structure AND a new swing high/low just
+// got confirmed AND price is already above/below it, that's an immediate continuation BOS.
+
+// New swing high just confirmed AND we're already bullish AND price is above it
+trendContinuationBull = not na(swingHigh) and structureState == 1 and close > swingHigh
+// New swing low just confirmed AND we're already bearish AND price is below it  
+trendContinuationBear = not na(swingLow) and structureState == -1 and close < swingLow
+
+// Combine: Either standard crossover OR immediate trend continuation
+rawBullishBOS := rawBullishBOS or trendContinuationBull
+rawBearishBOS := rawBearishBOS or trendContinuationBear
 
 // Calculate BOS strength (A6)
 bosBodySize = math.abs(close - open)
