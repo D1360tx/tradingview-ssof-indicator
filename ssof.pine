@@ -261,14 +261,22 @@ var float prevSwingLow = na
 var int prevHighBar = na
 var int prevLowBar = na
 
+// V7.0: Track the opposite swing that existed when each swing was confirmed
+// This is the correct impulse origin for BOS detection
+var float swingLowAtHighConfirm = na   // The swing low when this high was confirmed
+var float swingHighAtLowConfirm = na   // The swing high when this low was confirmed
+var int swingLowBarAtHighConfirm = na
+var int swingHighBarAtLowConfirm = na
+
 // Update swing highs
 if not na(swingHigh)
     prevSwingHigh := confirmedSwingHigh
     prevHighBar := confirmedHighBar
     confirmedSwingHigh := swingHigh
     confirmedHighBar := bar_index - swingLength
-
-    // V6.0: No longer tracking swing arrays for consolidation
+    // Capture the swing low that exists NOW (origin of the impulse to this high)
+    swingLowAtHighConfirm := confirmedSwingLow
+    swingLowBarAtHighConfirm := confirmedLowBar
 
 // Update swing lows
 if not na(swingLow)
@@ -276,8 +284,9 @@ if not na(swingLow)
     prevLowBar := confirmedLowBar
     confirmedSwingLow := swingLow
     confirmedLowBar := bar_index - swingLength
-
-    // V6.0: No longer tracking swing arrays for consolidation
+    // Capture the swing high that exists NOW (origin of the impulse to this low)
+    swingHighAtLowConfirm := confirmedSwingHigh
+    swingHighBarAtLowConfirm := confirmedHighBar
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░ MARKET STRUCTURE LOGIC ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -383,11 +392,11 @@ if bullishBOS
     barsSinceImpulse := 0
     wasConsolidating := false
     
-    // V7.0: Protected level = the most recent swing low (HL) when BOS triggers
-    // Per SMC: This is the origin of the current impulse
-    // Use confirmedSwingLow (most recent HL), not prevSwingLow (one behind)
-    protectedLow := not na(confirmedSwingLow) ? confirmedSwingLow : lowestLookback
-    protectedLowBar := not na(confirmedLowBar) ? confirmedLowBar : bar_index
+    // V7.0: Protected level = swing low that existed when the broken swing high was confirmed
+    // This is the TRUE impulse origin - the HL that preceded the move to that high
+    // swingLowAtHighConfirm was captured at the moment confirmedSwingHigh was detected
+    protectedLow := not na(swingLowAtHighConfirm) ? swingLowAtHighConfirm : (not na(confirmedSwingLow) ? confirmedSwingLow : lowestLookback)
+    protectedLowBar := not na(swingLowBarAtHighConfirm) ? swingLowBarAtHighConfirm : (not na(confirmedLowBar) ? confirmedLowBar : bar_index)
     
     // Impulse range: origin = protected low, high = highest since that swing
     impulseLow := protectedLow
@@ -423,11 +432,11 @@ if bearishBOS
     barsSinceImpulse := 0
     wasConsolidating := false
     
-    // V7.0: Protected level = the most recent swing high (LH) when BOS triggers
-    // Per SMC: This is the origin of the current bearish impulse
-    // Use confirmedSwingHigh (most recent LH), not prevSwingHigh (one behind)
-    protectedHigh := not na(confirmedSwingHigh) ? confirmedSwingHigh : highestLookback
-    protectedHighBar := not na(confirmedHighBar) ? confirmedHighBar : bar_index
+    // V7.0: Protected level = swing high that existed when the broken swing low was confirmed
+    // This is the TRUE impulse origin - the LH that preceded the move to that low
+    // swingHighAtLowConfirm was captured at the moment confirmedSwingLow was detected
+    protectedHigh := not na(swingHighAtLowConfirm) ? swingHighAtLowConfirm : (not na(confirmedSwingHigh) ? confirmedSwingHigh : highestLookback)
+    protectedHighBar := not na(swingHighBarAtLowConfirm) ? swingHighBarAtLowConfirm : (not na(confirmedHighBar) ? confirmedHighBar : bar_index)
     
     // Impulse range: origin = protected high, low = lowest since that swing
     impulseHigh := protectedHigh
