@@ -44,6 +44,42 @@ All notable changes to the SSOF indicator will be documented in this file.
 - **Behavior:** Internal zones IGNORE the "Filter Zones by Trend?" setting and show in both BULL and BEAR structures (since they're reference zones, not actionable trades).
 - **Recommendation:** Leave OFF for cleanest chart. Enable only if you want to see all structure levels.
 
+#### Fixed: Fibonacci Golden Zone Anchoring
+
+**CRITICAL FIX:** Fibonacci now anchors from the ACTIVE impulse range, not old structure legs.
+
+**Before (V6.x):**
+- Anchored from `prevSwingLow` / `prevSwingHigh` (old swing points)
+- Could anchor from previous structure legs
+- Example: BTC bearish structure anchoring from 111,196 instead of 107,500
+
+**After (V7.0):**
+- Anchors from `impulseLow` / `impulseHigh` (active impulse boundaries)
+- Always uses the current leg's impulse
+- Automatically updates as impulse extends
+
+**Bullish Structure:**
+```
+Fib 0% (origin)   = impulseLow   (protected low)
+Fib 100% (extreme) = impulseHigh  (extends as price makes new highs)
+```
+
+**Bearish Structure:**
+```
+Fib 0% (origin)   = impulseHigh  (protected high)  
+Fib 100% (extreme) = impulseLow   (extends as price makes new lows)
+```
+
+**Impact:**
+- Fibs now correctly measure retracements of the ACTIVE impulse
+- No more anchoring from old highs/lows from previous legs
+- Golden zones accurately represent 50%-61.8% retracement of current move
+- Removed "Use Protected Low/High for Fib Origin?" toggle (always uses impulse range now)
+
+**Example (BTC 4H Bearish):**
+- ❌ Old: Fib from 111,196 (old major high)
+- ✅ New: Fib from 107,500 (active lower high) → 86,000 (impulse low)
+
 #### How Structure Works Now (V7.0 SMC-Aligned)
 
 ```
