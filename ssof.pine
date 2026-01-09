@@ -531,8 +531,11 @@ if showProtectedLines and useProtectedLevels
     
     // Update/create protected low line (bullish structure)
     if structureState == 1 and not na(protectedLow)
+        // Use a reasonable start bar - either the protectedLowBar or a recent lookback if too old
+        lineStartBar = not na(protectedLowBar) ? math.max(protectedLowBar, bar_index - 200) : bar_index - 50
+        
         if na(protectedLowLine)
-            protectedLowLine := line.new(protectedLowBar, protectedLow, bar_index + 5, protectedLow,
+            protectedLowLine := line.new(lineStartBar, protectedLow, bar_index + 5, protectedLow,
                                          color=bullColor, width=2, style=lineStyle)
             protectedLowLabel := label.new(bar_index + 5, protectedLow, "Protected Low",
                                            style=label.style_label_left,
@@ -540,8 +543,12 @@ if showProtectedLines and useProtectedLevels
                                            textcolor=bullColor,
                                            size=size.tiny)
         else
+            line.set_x1(protectedLowLine, lineStartBar)
             line.set_x2(protectedLowLine, bar_index + 5)
+            line.set_y1(protectedLowLine, protectedLow)
+            line.set_y2(protectedLowLine, protectedLow)
             label.set_x(protectedLowLabel, bar_index + 5)
+            label.set_y(protectedLowLabel, protectedLow)
     else
         if not na(protectedLowLine)
             line.delete(protectedLowLine)
@@ -551,8 +558,11 @@ if showProtectedLines and useProtectedLevels
     
     // Update/create protected high line (bearish structure)
     if structureState == -1 and not na(protectedHigh)
+        // Use a reasonable start bar - either the protectedHighBar or a recent lookback if too old
+        lineStartBarHigh = not na(protectedHighBar) ? math.max(protectedHighBar, bar_index - 200) : bar_index - 50
+        
         if na(protectedHighLine)
-            protectedHighLine := line.new(protectedHighBar, protectedHigh, bar_index + 5, protectedHigh,
+            protectedHighLine := line.new(lineStartBarHigh, protectedHigh, bar_index + 5, protectedHigh,
                                           color=bearColor, width=2, style=lineStyle)
             protectedHighLabel := label.new(bar_index + 5, protectedHigh, "Protected High",
                                             style=label.style_label_left,
@@ -560,8 +570,12 @@ if showProtectedLines and useProtectedLevels
                                             textcolor=bearColor,
                                             size=size.tiny)
         else
+            line.set_x1(protectedHighLine, lineStartBarHigh)
             line.set_x2(protectedHighLine, bar_index + 5)
+            line.set_y1(protectedHighLine, protectedHigh)
+            line.set_y2(protectedHighLine, protectedHigh)
             label.set_x(protectedHighLabel, bar_index + 5)
+            label.set_y(protectedHighLabel, protectedHigh)
     else
         if not na(protectedHighLine)
             line.delete(protectedHighLine)
