@@ -345,19 +345,23 @@ if useProtectedLevels
 
 // ─────────────────────────── Final BOS Determination - V7.0 REWRITE ──────────────────────────
 // V7.0: BOS valid when:
+// - INITIAL STATE (neutral): Any raw BOS establishes direction
 // - SAME-BIAS CONTINUATIONS: Always valid if raw break detected (extends impulse)
 // - OPPOSITE-BIAS REVERSALS: Only valid if protected level broken AND not inside impulse range
 
-// Determine if this is a same-bias continuation or opposite-bias reversal
+// Determine break context
+isNeutral = structureState == 0  // Initial/no established structure yet
 isBullContinuation = rawBullishBOS and structureState == 1   // Bullish BOS while already bullish
 isBearContinuation = rawBearishBOS and structureState == -1  // Bearish BOS while already bearish
 isBullReversal = rawBullishBOS and structureState == -1      // Bullish BOS while bearish
 isBearReversal = rawBearishBOS and structureState == 1       // Bearish BOS while bullish
 
-// Same-bias continuations: Always valid (extend the impulse, print BOS label)
-// Opposite-bias reversals: Only valid if protected level broken and not inside impulse range
-bullishBOS = isBullContinuation or (isBullReversal and protectedLevelBroken and not isInsideImpulseRange)
-bearishBOS = isBearContinuation or (isBearReversal and protectedLevelBroken and not isInsideImpulseRange)
+// Apply rules:
+// - Initial state: Any raw BOS is valid (establishes structure)
+// - Continuations: Always valid (extend impulse)
+// - Reversals: Need protected level broken and not inside impulse range
+bullishBOS = (isNeutral and rawBullishBOS) or isBullContinuation or (isBullReversal and protectedLevelBroken and not isInsideImpulseRange)
+bearishBOS = (isNeutral and rawBearishBOS) or isBearContinuation or (isBearReversal and protectedLevelBroken and not isInsideImpulseRange)
 
 // ─────────────────────────── Structure State Update ───────────────────────────
 // Track previous state
