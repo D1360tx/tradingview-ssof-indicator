@@ -121,7 +121,7 @@ After Bullish BOS at swing high:
 
 ---
 
-## [6.2.3] - 2026-01-08
+## [6.2.3] - 2026-01-08 (historical)
 
 ### Changed
 - **Pullback golden zone colors updated**
@@ -131,7 +131,7 @@ After Bullish BOS at swing high:
   - **Highlight state:** When price enters bullish golden zone, highlights in yellow instead of lime
   - **Rationale:** Better visual distinction between structure colors (green/red) and entry zones (gold/orange)
 
-## [6.2.2] - 2026-01-07
+## [6.2.2] - 2026-01-07 (historical)
 
 ### Changed
 - **Consolidation detection temporarily disabled**
@@ -154,7 +154,7 @@ After Bullish BOS at swing high:
 
 This allows us to focus on perfecting the core Smart Money Concepts features before tackling the complex consolidation detection logic.
 
-## [6.2.1] - 2026-01-07
+## [6.2.1] - 2026-01-07 (historical)
 
 ### Fixed
 - **Syntax error: Extra closing parenthesis**
@@ -163,7 +163,7 @@ This allows us to focus on perfecting the core Smart Money Concepts features bef
   - **Solution:** Removed duplicated box.new() parameters
   - **Result:** Indicator compiles without syntax errors
 
-## [6.2.0] - 2026-01-07
+## [6.2.0] - 2026-01-07 (historical)
 
 ### MAJOR REWRITE - Post-BOS Consolidation Logic
 
@@ -208,7 +208,7 @@ After Bearish BOS:
 #### Breaking Change
 This is a fundamental change in how consolidation is detected. Previous versions may have shown different consolidation areas. The new approach is more accurate to Smart Money Concepts.
 
-## [6.1.6] - 2026-01-07
+## [6.1.6] - 2026-01-07 (historical)
 
 ### Fixed
 - **Consolidation box vertical stretching**
@@ -231,7 +231,7 @@ This is a fundamental change in how consolidation is detected. Previous versions
 
 This separates the "how long has it been consolidating" (time) from "what's the actual price range" (height), preventing the vertical stretching issue.
 
-## [6.1.5] - 2026-01-07
+## [6.1.5] - 2026-01-07 (historical)
 
 ### Fixed
 - **Ultra-conservative historical buffer protection**
@@ -252,7 +252,7 @@ This separates the "how long has it been consolidating" (time) from "what's the 
 ### Technical Note
 The 50-bar cap is intentionally conservative. In practice, most significant price moves complete within 50 bars, and this prevents any possibility of buffer overflow while maintaining functionality.
 
-## [6.1.4] - 2026-01-07
+## [6.1.4] - 2026-01-07 (historical)
 
 ### Fixed
 - **Final historical buffer fix with null checks**
@@ -267,7 +267,7 @@ The 50-bar cap is intentionally conservative. In practice, most significant pric
   - **Fixed:** Proper indentation for nested logic blocks
   - **Result:** All historical buffer errors eliminated
 
-## [6.1.3] - 2026-01-07
+## [6.1.3] - 2026-01-07 (historical)
 
 ### Fixed
 - **Complete historical buffer overflow fix**
@@ -290,7 +290,7 @@ result = ta.highest/lowest(price, safeBarsFromOrigin)
 
 This ensures we never request more historical data than is available.
 
-## [6.1.2] - 2026-01-07
+## [6.1.2] - 2026-01-07 (historical)
 
 ### Fixed
 - **Historical buffer overflow error**
@@ -299,7 +299,7 @@ This ensures we never request more historical data than is available.
   - **Solution:** Added `math.min(barsInTightRange, bar_index)` to limit lookback to available bars
   - **Result:** Indicator works correctly even with long consolidation periods
 
-## [6.1.1] - 2026-01-07
+## [6.1.1] - 2026-01-07 (historical)
 
 ### Fixed
 - **Runtime error on line 468**
@@ -307,7 +307,7 @@ This ensures we never request more historical data than is available.
   - **Solution:** Added `math.max(1, ...)` to ensure lookback is always at least 1 bar
   - **Result:** Indicator now loads without errors
 
-## [6.1.0] - 2026-01-07
+## [6.1.0] - 2026-01-07 (historical)
 
 ### MAJOR IMPROVEMENT - Swing-Based Consolidation Detection
 
@@ -350,7 +350,7 @@ The oscillation check is the key differentiator - it ensures we only mark true r
 #### Migration from V6.0.x
 This is a significant improvement. You may see more consolidation boxes now, which is correct - previous versions were missing legitimate consolidations due to the 8-bar BOS delay.
 
-## [6.0.3] - 2026-01-07
+## [6.0.3] - 2026-01-07 (historical)
 
 ### Fixed
 - **Consolidation box now starts at correct position**
@@ -368,7 +368,7 @@ This is a significant improvement. You may see more consolidation boxes now, whi
 - Box height: Set once at detection, never updated
 - Box width: Only `set_right()` is called to extend forward
 
-## [6.0.2] - 2026-01-07
+## [6.0.2] - 2026-01-07 (historical)
 
 ### Fixed
 - **Consolidation box over-expansion bug**
@@ -385,7 +385,7 @@ This is a significant improvement. You may see more consolidation boxes now, whi
 - Added `sufficientTimeSinceBOS` check to prevent false consolidation signals during pullbacks
 - Added proper `barsSinceImpulse += 1` increment (was missing)
 
-## [6.0.1] - 2026-01-06
+## [6.0.1] - 2026-01-06 (historical)
 
 ### Fixed
 - **CRITICAL FIX: Structure state (BULL/BEAR) now persists correctly during consolidation**
@@ -397,7 +397,7 @@ This is a significant improvement. You may see more consolidation boxes now, whi
     - Consolidation boxes still display, but don't interfere with trend tracking
   - **Technical:** `structureState` now ONLY changes on actual BOS events, never on consolidation detection
 
-## [6.0] - 2026-01-06
+## [6.0] - 2026-01-06 (historical)
 
 ### MAJOR REWRITE - Simple Range-Based Detection
 
@@ -439,7 +439,7 @@ isConsolidating = isRangeTight and barsInRange >= 3
 #### Migration from V5.x
 The pivot-based approach had fundamental timing issues that couldn't be fixed. This new approach is architecturally superior - simpler, faster, and more reliable.
 
-## [5.7] - 2026-01-05
+## [5.7] - 2026-01-05 (historical)
 
 ### Changed
 - **Golden zone historical persistence**
@@ -464,7 +464,7 @@ The pivot-based approach had fundamental timing issues that couldn't be fixed. T
 - Always one zone visible for reference
 - Clean chart (no clutter from multiple old zones)
 
-## [5.6] - 2026-01-05
+## [5.6] - 2026-01-05 (historical)
 
 ### Fixed
 - **Golden zone premature invalidation**
@@ -484,7 +484,7 @@ Previous versions invalidated the golden zone if price closed even 1 tick below 
 - Only invalidates when structure state changes (bearish breaks protected low, or vice versa)
 - Allows traders to catch entries at deeper discount levels
 
-## [5.5] - 2026-01-05
+## [5.5] - 2026-01-05 (historical)
 
 ### Added
 - **Fibonacci Origin Selection Toggle**
@@ -520,7 +520,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
 - Dynamic Fib tracking now uses correct origin bar for both modes
 - Both bullish and bearish calculations support toggle
 
-## [5.4] - 2026-01-05
+## [5.4] - 2026-01-05 (historical)
 
 ### Fixed
 - **Critical: Fibonacci now uses correct impulse origin**
@@ -541,7 +541,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
 - **V5.3 wrong:** Measured from Low #2 (105) - most recent
 - **V5.4 correct:** Measures from Low #1 (100) - impulse origin
 
-## [5.3] - 2026-01-05
+## [5.3] - 2026-01-05 (historical)
 
 ### Changed
 - **Dynamic Fibonacci updating until pullback begins**
@@ -561,7 +561,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
 - If new extreme found, updates `currentFibExtreme` and recalculates all fib levels
 - Ensures golden zone always measures retracement of the complete impulse move
 
-## [5.2] - 2026-01-05
+## [5.2] - 2026-01-05 (historical)
 
 ### Changed
 - **Corrected Fibonacci calculation to measure true impulse range**
@@ -576,7 +576,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
 - Golden zone now represents proper retracement of the full impulse move
 - More accurate and consistent with standard Fib tools
 
-## [5.1] - 2026-01-05
+## [5.1] - 2026-01-05 (historical)
 
 ### Changed
 - **Improved Fibonacci pullback calculation accuracy**
@@ -590,7 +590,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
 - Bearish: 0% = swing high, 100% = swing low (that was broken)
 - Eliminates variability from confirmation candle wicks/bodies
 
-## [5.0.1] - 2026-01-05
+## [5.0.1] - 2026-01-05 (historical)
 
 ### Fixed
 - **Consolidation detection not triggering**
@@ -608,7 +608,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
 - Core consolidation detection works like V4.7 by default
 - Users can progressively enable stricter filters as needed
 
-## [5.0] - 2026-01-05
+## [5.0] - 2026-01-05 (historical)
 
 ### Fixed
 - **bosColor variable redeclaration bug**
@@ -639,7 +639,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
 ### Verified
 - Supply/Demand zone creation and mitigation logic confirmed working correctly
 
-## [4.9] - 2026-01-04
+## [4.9] - 2026-01-04 (historical)
 
 ### Changed
 - **Dashboard text size increase for desktop readability**
@@ -648,7 +648,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
   - All other rows: size.tiny → size.small
   - Better balance between mobile and desktop viewing
 
-## [4.8] - 2026-01-02
+## [4.8] - 2026-01-02 (historical)
 
 ### Changed
 - **Compact mobile-friendly dashboard**
@@ -659,7 +659,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
   - Better balance for iPhone 15 Pro Max and desktop viewing
   - Renamed "Zones" to "S/D" for clarity
 
-## [4.7] - 2026-01-02
+## [4.7] - 2026-01-02 (historical)
 
 ### Changed
 - **Improved consolidation detection with range tightness + swing clustering**
@@ -673,7 +673,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
 ### Added
 - New settings: "Max Range (ATR)", "Swing Cluster Tolerance", "Min Touches"
 
-## [4.6] - 2026-01-02
+## [4.6] - 2026-01-02 (historical)
 
 ### Changed
 - **Direction-specific golden zone colors**
@@ -684,7 +684,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
 ### Added
 - Separate color settings for bull/bear zones
 
-## [4.5] - 2026-01-02
+## [4.5] - 2026-01-02 (historical)
 
 ### Changed
 - **Smarter consolidation range using swing point clustering**
@@ -695,7 +695,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
   - Swing arrays cleared on new BOS for fresh calculation
   - Eliminates impulse moves from inflating the range
 
-## [4.4] - 2026-01-02
+## [4.4] - 2026-01-02 (historical)
 
 ### Fixed
 - **Consolidation range calculation**
@@ -703,7 +703,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
   - Uses ta.highest/ta.lowest over consolidation period
   - Box starts from lookback period, not old impulse bar
 
-## [4.3] - 2026-01-02
+## [4.3] - 2026-01-02 (historical)
 
 ### Fixed
 - **Overlapping consolidation boxes**
@@ -711,7 +711,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
   - Removes historical boxes that overlap in price range
   - Prevents stacked boxes in same price area
 
-## [4.2] - 2026-01-02
+## [4.2] - 2026-01-02 (historical)
 
 ### Added
 - **Historical consolidation zones**
@@ -720,7 +720,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
   - New setting: "Max Historical Boxes" limit
   - Historical boxes useful for identifying re-test zones
 
-## [4.1] - 2026-01-02
+## [4.1] - 2026-01-02 (historical)
 
 ### Fixed
 - **Consolidation detection logic**
@@ -731,7 +731,7 @@ When multiple swing lows exist at different levels before BOS, the swing pivot a
 ### Added
 - New setting: "Max Range (ATR)" threshold
 
-## [4.0] - 2026-01-02
+## [4.0] - 2026-01-02 (historical)
 
 ### Added
 - **Initial release with full rule set (A1-A8)**
