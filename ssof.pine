@@ -412,11 +412,12 @@ if bullishBOS
     barsSinceImpulse := 0
     wasConsolidating := false
     
-    // V7.0: Protected level = swing low that existed when the broken swing high was confirmed
-    // This is the TRUE impulse origin - the HL that preceded the move to that high
-    // swingLowAtHighConfirm was captured at the moment confirmedSwingHigh was detected
-    protectedLow := not na(swingLowAtHighConfirm) ? swingLowAtHighConfirm : (not na(confirmedSwingLow) ? confirmedSwingLow : lowestLookback)
-    protectedLowBar := not na(swingLowBarAtHighConfirm) ? swingLowBarAtHighConfirm : (not na(confirmedLowBar) ? confirmedLowBar : bar_index)
+    // V7.0 SMC-CORRECT: Protected level = the most recent swing low (HL) at the moment BOS triggers
+    // Per ICT/SMC research: "The swing low prior to BOS" is the protected low
+    // Using confirmedSwingLow ensures it's the HL that DIRECTLY preceded/enabled this BOS
+    // This also ensures protected low TRAILS UP with each continuation BOS
+    protectedLow := not na(confirmedSwingLow) ? confirmedSwingLow : lowestLookback
+    protectedLowBar := not na(confirmedLowBar) ? confirmedLowBar : bar_index
     
     // Impulse range: origin = protected low, high = highest since that swing
     impulseLow := protectedLow
@@ -452,11 +453,12 @@ if bearishBOS
     barsSinceImpulse := 0
     wasConsolidating := false
     
-    // V7.0: Protected level = swing high that existed when the broken swing low was confirmed
-    // This is the TRUE impulse origin - the LH that preceded the move to that low
-    // swingHighAtLowConfirm was captured at the moment confirmedSwingLow was detected
-    protectedHigh := not na(swingHighAtLowConfirm) ? swingHighAtLowConfirm : (not na(confirmedSwingHigh) ? confirmedSwingHigh : highestLookback)
-    protectedHighBar := not na(swingHighBarAtLowConfirm) ? swingHighBarAtLowConfirm : (not na(confirmedHighBar) ? confirmedHighBar : bar_index)
+    // V7.0 SMC-CORRECT: Protected level = the most recent swing high (LH) at the moment BOS triggers
+    // Per ICT/SMC research: "The swing high prior to BOS" is the protected high
+    // Using confirmedSwingHigh ensures it's the LH that DIRECTLY preceded/enabled this BOS
+    // This also ensures protected high TRAILS DOWN with each continuation BOS
+    protectedHigh := not na(confirmedSwingHigh) ? confirmedSwingHigh : highestLookback
+    protectedHighBar := not na(confirmedHighBar) ? confirmedHighBar : bar_index
     
     // Impulse range: origin = protected high, low = lowest since that swing
     impulseHigh := protectedHigh
