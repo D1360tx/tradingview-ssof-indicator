@@ -389,9 +389,16 @@ if bullishBOS
     protectedLow := lowestLookback
     protectedLowBar := bar_index
     
-    // Set impulse range - use pre-calculated lookback values for consistency
-    impulseLow := lowestLookback   // Same as protectedLow
-    impulseHigh := highestLookback  // Highest high in the lookback window
+    // Find the impulse extreme: highest high SINCE the protected low occurred
+    // Search within lookback window to find when the lowest low happened
+    barsToLowest = 0
+    for i = 0 to lookbackBars - 1
+        if low[i] == lowestLookback
+            barsToLowest := i
+            break
+    // Now get highest high from that point forward
+    impulseLow := lowestLookback
+    impulseHigh := barsToLowest > 0 ? ta.highest(high, barsToLowest + 1) : high
     lastImpulseBar := bar_index
     
     // Mark consolidation as broken (keep historical if enabled)
@@ -423,9 +430,16 @@ if bearishBOS
     protectedHigh := highestLookback
     protectedHighBar := bar_index
     
-    // Set impulse range - use pre-calculated lookback values for consistency
-    impulseHigh := highestLookback  // Same as protectedHigh
-    impulseLow := lowestLookback    // Lowest low in the lookback window
+    // Find the impulse extreme: lowest low SINCE the protected high occurred
+    // Search within lookback window to find when the highest high happened  
+    barsToHighest = 0
+    for i = 0 to lookbackBars - 1
+        if high[i] == highestLookback
+            barsToHighest := i
+            break
+    // Now get lowest low from that point forward
+    impulseHigh := highestLookback
+    impulseLow := barsToHighest > 0 ? ta.lowest(low, barsToHighest + 1) : low
     lastImpulseBar := bar_index
     
     // Mark consolidation as broken (keep historical if enabled)
