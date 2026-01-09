@@ -344,26 +344,20 @@ if useProtectedLevels
         protectedLevelBroken := true
 
 // ─────────────────────────── Final BOS Determination - V7.0 REWRITE ──────────────────────────
-// V7.0: BOS is valid only if:
-// 1. Raw break detected AND
-// 2. NOT inside impulse range (not internal) AND
-// 3. Either same-bias continuation OR protected level broken for reversal
+// V7.0: BOS valid when:
+// - SAME-BIAS CONTINUATIONS: Always valid if raw break detected (extends impulse)
+// - OPPOSITE-BIAS REVERSALS: Only valid if protected level broken AND not inside impulse range
 
-// Start with raw breaks filtered by internal check
-bullishBOS = rawBullishBOS and not isInsideImpulseRange
-bearishBOS = rawBearishBOS and not isInsideImpulseRange
+// Determine if this is a same-bias continuation or opposite-bias reversal
+isBullContinuation = rawBullishBOS and structureState == 1   // Bullish BOS while already bullish
+isBearContinuation = rawBearishBOS and structureState == -1  // Bearish BOS while already bearish
+isBullReversal = rawBullishBOS and structureState == -1      // Bullish BOS while bearish
+isBearReversal = rawBearishBOS and structureState == 1       // Bearish BOS while bullish
 
-// V7.0: For OPPOSITE-BIAS breaks (reversals), require protected level breach
-// Same-bias breaks (continuations) can extend the impulse without protected level breach
-if useProtectedLevels
-    // Bullish break while in BEARISH structure = reversal, needs protected level breach
-    if bullishBOS and structureState == -1
-        if not protectedLevelBroken
-            bullishBOS := false  // Can't flip without breaking protected high
-    // Bearish break while in BULLISH structure = reversal, needs protected level breach  
-    if bearishBOS and structureState == 1
-        if not protectedLevelBroken
-            bearishBOS := false  // Can't flip without breaking protected low
+// Same-bias continuations: Always valid (extend the impulse, print BOS label)
+// Opposite-bias reversals: Only valid if protected level broken and not inside impulse range
+bullishBOS = isBullContinuation or (isBullReversal and protectedLevelBroken and not isInsideImpulseRange)
+bearishBOS = isBearContinuation or (isBearReversal and protectedLevelBroken and not isInsideImpulseRange)
 
 // ─────────────────────────── Structure State Update ───────────────────────────
 // Track previous state
