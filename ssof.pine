@@ -385,19 +385,19 @@ if bullishBOS
     barsSinceImpulse := 0
     wasConsolidating := false
     
-    // Set protected low (origin of the move) - for structure invalidation
-    // Use ta.lowestbars to find HOW MANY BARS AGO the protected low occurred
-    barsAgoLowest = math.abs(ta.lowestbars(low, lookbackBars))  // Returns negative, make positive
-    protectedLow := lowestLookback  // Absolute lowest - for invalidation
-    protectedLowBar := bar_index - barsAgoLowest  // Actual bar where the low occurred
+    // V7.0: Protected level = structural swing pivot that preceded this BOS
+    // Per SMC: If price breaks below this swing low, bullish structure is invalidated
+    // Use prevSwingLow (the actual structural swing), falling back to lowestLookback if unavailable
+    protectedLow := not na(prevSwingLow) ? prevSwingLow : lowestLookback
+    protectedLowBar := not na(prevLowBar) ? prevLowBar : bar_index
     
-    // V7.0 FIX: Impulse origin uses STRUCTURAL SWING (prevSwingLow), not absolute lowest
-    // Per spec F1: "Fib Low = the most recent HIGHER LOW that directly preceded the bullish impulse"
-    // This ensures fib measures from the actual swing pivot, not an older low from previous structure
-    impulseLow := not na(prevSwingLow) ? prevSwingLow : lowestLookback  // Swing pivot is impulse origin
+    // Impulse range uses same structural swing as origin
+    impulseLow := protectedLow  // Swing pivot is both protected level AND impulse origin
     
-    // Find impulse high: Either current high or highest since the swing
-    impulseHigh := not na(prevLowBar) ? ta.highest(high, bar_index - prevLowBar + 1) : high
+    // Find impulse high: highest since the swing pivot
+    barsFromSwing = bar_index - protectedLowBar
+    safeBarsFromSwing = math.max(1, math.min(barsFromSwing + 1, bar_index + 1))
+    impulseHigh := ta.highest(high, safeBarsFromSwing)
     lastImpulseBar := bar_index
     
     // Mark consolidation as broken (keep historical if enabled)
@@ -425,19 +425,19 @@ if bearishBOS
     barsSinceImpulse := 0
     wasConsolidating := false
     
-    // Set protected high (origin of the move) - for structure invalidation
-    // Use ta.highestbars to find HOW MANY BARS AGO the protected high occurred
-    barsAgoHighest = math.abs(ta.highestbars(high, lookbackBars))  // Returns negative, make positive
-    protectedHigh := highestLookback  // Absolute highest - for invalidation
-    protectedHighBar := bar_index - barsAgoHighest  // Actual bar where the high occurred
+    // V7.0: Protected level = structural swing pivot that preceded this BOS
+    // Per SMC: If price breaks above this swing high, bearish structure is invalidated
+    // Use prevSwingHigh (the actual structural swing), falling back to highestLookback if unavailable
+    protectedHigh := not na(prevSwingHigh) ? prevSwingHigh : highestLookback
+    protectedHighBar := not na(prevHighBar) ? prevHighBar : bar_index
     
-    // V7.0 FIX: Impulse origin uses STRUCTURAL SWING (prevSwingHigh), not absolute highest
-    // Per spec D1: "Fib High = the most recent LOWER HIGH that directly preceded the bearish impulse"
-    // This ensures fib measures from the actual swing pivot, not an older high from previous structure
-    impulseHigh := not na(prevSwingHigh) ? prevSwingHigh : highestLookback  // Swing pivot is impulse origin
+    // Impulse range uses same structural swing as origin
+    impulseHigh := protectedHigh  // Swing pivot is both protected level AND impulse origin
     
-    // Find impulse low: Either current low or lowest since the swing
-    impulseLow := not na(prevHighBar) ? ta.lowest(low, bar_index - prevHighBar + 1) : low
+    // Find impulse low: lowest since the swing pivot
+    barsFromSwing = bar_index - protectedHighBar
+    safeBarsFromSwing = math.max(1, math.min(barsFromSwing + 1, bar_index + 1))
+    impulseLow := ta.lowest(low, safeBarsFromSwing)
     lastImpulseBar := bar_index
     
     // Mark consolidation as broken (keep historical if enabled)
