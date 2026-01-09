@@ -75,10 +75,13 @@ Fib 100% (extreme) = impulseLow   (extends as price makes new lows)
 - No more anchoring from old highs/lows from previous legs
 - Golden zones accurately represent 50%-61.8% retracement of current move
 - Removed "Use Protected Low/High for Fib Origin?" toggle (always uses impulse range now)
+- Uses `ta.highestbars()`/`ta.lowestbars()` for reliable bar offset detection
+- Fib extreme dynamically syncs with `impulseLow`/`impulseHigh` every bar
+- Protected level bar set to ACTUAL bar where extreme occurred (not BOS bar)
 
 **Example (BTC 4H Bearish):**
-- ❌ Old: Fib from 111,196 (old major high)
-- ✅ New: Fib from 107,500 (active lower high) → 86,000 (impulse low)
+- ❌ Old: Fib from 111,196 (old major high) → ~95,000 (wrong low)
+- ✅ New: Fib from 107,500 (active lower high) → 80,600 (actual impulse low)
 
 #### How Structure Works Now (V7.0 SMC-Aligned)
 
