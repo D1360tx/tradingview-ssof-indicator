@@ -814,6 +814,20 @@ if showDevelopingLevels
                                             color=color.new(bullColor, 85),
                                             textcolor=bullColor,
                                             size=size.tiny)
+else
+    // Clean up lines when setting is disabled
+    if not na(developingHighLine)
+        line.delete(developingHighLine)
+        developingHighLine := na
+    if not na(developingHighLabel)
+        label.delete(developingHighLabel)
+        developingHighLabel := na
+    if not na(developingLowLine)
+        line.delete(developingLowLine)
+        developingLowLine := na
+    if not na(developingLowLabel)
+        label.delete(developingLowLabel)
+        developingLowLabel := na
 
 // ─────────────────────── BOS Lines with Strength Grading ──────────────────────
 // When BOS confirms, draw the solid confirmation line and label
