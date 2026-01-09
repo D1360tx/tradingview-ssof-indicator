@@ -383,16 +383,16 @@ if bullishBOS
     barsSinceImpulse := 0
     wasConsolidating := false
     
-    // V7.0: Protected level = structural swing pivot that preceded this BOS
-    // Per SMC: If price breaks below this swing low, bullish structure is invalidated
-    // Use prevSwingLow (the actual structural swing), falling back to lowestLookback if unavailable
-    protectedLow := not na(prevSwingLow) ? prevSwingLow : lowestLookback
-    protectedLowBar := not na(prevLowBar) ? prevLowBar : bar_index
+    // V7.0: Protected level = the most recent swing low (HL) when BOS triggers
+    // Per SMC: This is the origin of the current impulse
+    // Use confirmedSwingLow (most recent HL), not prevSwingLow (one behind)
+    protectedLow := not na(confirmedSwingLow) ? confirmedSwingLow : lowestLookback
+    protectedLowBar := not na(confirmedLowBar) ? confirmedLowBar : bar_index
     
-    // Impulse range uses same structural swing as origin
-    impulseLow := protectedLow  // Swing pivot is both protected level AND impulse origin
+    // Impulse range: origin = protected low, high = highest since that swing
+    impulseLow := protectedLow
     
-    // Find impulse high: highest since the swing pivot
+    // Find impulse high: highest since the protected low bar
     barsFromSwing = bar_index - protectedLowBar
     safeBarsFromSwing = math.max(1, math.min(barsFromSwing + 1, bar_index + 1))
     impulseHigh := ta.highest(high, safeBarsFromSwing)
@@ -423,16 +423,16 @@ if bearishBOS
     barsSinceImpulse := 0
     wasConsolidating := false
     
-    // V7.0: Protected level = structural swing pivot that preceded this BOS
-    // Per SMC: If price breaks above this swing high, bearish structure is invalidated
-    // Use prevSwingHigh (the actual structural swing), falling back to highestLookback if unavailable
-    protectedHigh := not na(prevSwingHigh) ? prevSwingHigh : highestLookback
-    protectedHighBar := not na(prevHighBar) ? prevHighBar : bar_index
+    // V7.0: Protected level = the most recent swing high (LH) when BOS triggers
+    // Per SMC: This is the origin of the current bearish impulse
+    // Use confirmedSwingHigh (most recent LH), not prevSwingHigh (one behind)
+    protectedHigh := not na(confirmedSwingHigh) ? confirmedSwingHigh : highestLookback
+    protectedHighBar := not na(confirmedHighBar) ? confirmedHighBar : bar_index
     
-    // Impulse range uses same structural swing as origin
-    impulseHigh := protectedHigh  // Swing pivot is both protected level AND impulse origin
+    // Impulse range: origin = protected high, low = lowest since that swing
+    impulseHigh := protectedHigh
     
-    // Find impulse low: lowest since the swing pivot
+    // Find impulse low: lowest since the protected high bar
     barsFromSwing = bar_index - protectedHighBar
     safeBarsFromSwing = math.max(1, math.min(barsFromSwing + 1, bar_index + 1))
     impulseLow := ta.lowest(low, safeBarsFromSwing)
