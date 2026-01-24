@@ -2,7 +2,118 @@
 
 All notable changes to the SSOF indicator will be documented in this file.
 
-## [7.0.1-alpha] - 2026-01-09 @ 12:50 CST ⭐ **CURRENT STABLE**
+---
+
+## Version Naming Convention
+
+**Format:** `V{major}.{minor}.{patch}-{stage} ({feature-tag})`
+
+- **major:** Breaking changes or major feature additions
+- **minor:** New features, significant enhancements
+- **patch:** Bug fixes, small improvements
+- **stage:** `alpha` (testing), `beta` (feature complete, testing), `stable` (production ready)
+- **feature-tag:** Short description of main feature (e.g., "Reversal Candle Exit")
+
+**Example:** `V7.3.0-beta (Phase 1 Filters)` - Version 7.3.0, beta stage, main feature is Phase 1 Filters
+
+This convention allows easy tracking of changes and rollback if needed. Backup files in `/backups` preserve stable versions.
+
+---
+
+## [7.3.0-beta] - 2026-01-24 ⭐ **CURRENT**
+
+### Phase 1 Filters Implementation
+
+**This version implements the Phase 1 high-impact filters designed to reduce false signals by 30-40%.**
+
+#### Feature: Swing Respect Filter
+
+**Problem:** If price touches the protected level during pullback, structure integrity is compromised. Entries after this often fail.
+
+**Solution:**
+- New toggle: `Require Swing Respect?` (default: ON)
+- Tracks if LOW touches protected low (bullish) or HIGH touches protected high (bearish) during pullback
+- Entry signal blocked if protected level was tested
+
+**Implementation:**
+```pine
+// Bullish: check if low touched protected level
+if not na(protectedLow) and low <= protectedLow
+    protectedLevelTested := true
+
+// Bearish: check if high touched protected level
+if not na(protectedHigh) and high >= protectedHigh
+    protectedLevelTested := true
+
+// Block confirmation if filter enabled and level was tested
+if requireSwingRespect and protectedLevelTested
+    confirmationMet := false
+```
+
+**Example - Bullish:**
+```
+BOS at 100 -> Protected Low = 95
+Pullback: High 105 -> Low 98 (golden zone) -> ENTRY OK
+Pullback: High 105 -> Low 94.5 (touched protected) -> NO ENTRY (structure compromised)
+```
+
+---
+
+#### Feature: Max Bars Filter
+
+**Problem:** Stale signals - golden zones remain active indefinitely. Late entries have poor risk/reward.
+
+**Solution:**
+- New input: `Max Bars for Entry` (default: 25 bars)
+- Tracks bars since BOS: `barsSinceBOS = bar_index - pullbackStartBar`
+- Zone expires and invalidates if no entry within limit
+
+**Implementation:**
+```pine
+barsSinceBOS = bar_index - pullbackStartBar
+zoneExpired = not na(pullbackStartBar) and barsSinceBOS > maxBarsForEntry
+
+if zoneInvalidated or zoneExpired
+    pullbackDirection := 0  // Zone killed
+```
+
+**Example (15m timeframe, 25 bars = 6.25 hours):**
+```
+BOS at 10:00 AM -> Golden zone appears
+15:00 PM (20 bars): Zone still valid
+17:00 PM (28 bars): Zone EXPIRED, no longer monitoring
+```
+
+---
+
+#### Project Reorganization
+
+- Moved 5 backup pine files to `/backups/`
+- Moved 7 release notes to `/docs/releases/`
+- Moved 4 spec documents to `/docs/specs/`
+- Added `.gitignore` (excludes .DS_Store, .claude/, IDE files)
+- Root directory reduced from 25 files to 6 files
+
+---
+
+#### Settings Reference
+
+**Phase 1 Filters (New):**
+```
+Require Strong BOS: ON (existing)
+Require Swing Respect: ON (NEW)
+Max Bars for Entry: 25 (NEW)
+```
+
+**Expected Impact:**
+- 30-40% reduction in total signals
+- Higher win rate on remaining signals
+- Eliminates stale/late entries
+- Catches structural weakness early
+
+---
+
+## [7.0.1-alpha] - 2026-01-09 @ 12:50 CST ⭐ **BASELINE STABLE**
 
 ### 🎯 CRITICAL SMC FIXES - Protected Levels & Reversal Detection
 

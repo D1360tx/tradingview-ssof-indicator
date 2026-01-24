@@ -3,7 +3,7 @@
 // GitHub: https://github.com/d1360tx/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V7.3.0-beta (Reversal Candle Exit)", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V7.3.0-beta (Phase 1 Filters)", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -1335,6 +1335,7 @@ if showPullbackZone
         barsNearTarget := 0
         reversalCandleDetected := false
         reversalCandleExitLevel := na
+        protectedLevelTested := false  // V7.2: Reset on new BOS
 
         // Calculate fib levels (for bullish: retracement goes DOWN from impulse high to impulse low)
         fibRange = currentFibExtreme - currentFibOrigin
@@ -1376,6 +1377,7 @@ if showPullbackZone
         barsNearTarget := 0
         reversalCandleDetected := false
         reversalCandleExitLevel := na
+        protectedLevelTested := false  // V7.2: Reset on new BOS
 
         // Calculate fib levels (for bearish: retracement goes UP from impulse low to impulse high)
         fibRange = currentFibOrigin - currentFibExtreme
@@ -1395,10 +1397,14 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
     if pullbackDirection == -1 and structureState != -1
         zoneInvalidated := true
 
+    // V7.2: Max Bars filter - expire zone if too many bars since BOS
+    barsSinceBOS = bar_index - pullbackStartBar
+    zoneExpired = not na(pullbackStartBar) and barsSinceBOS > maxBarsForEntry
+
     // Note: Removed overly strict origin check - valid pullbacks can go to 0.786 or 1.0 fib
     // Zone persists as historical reference until replaced by new zone
 
-    if zoneInvalidated
+    if zoneInvalidated or zoneExpired
         // Don't cleanup - keep zone visible as historical reference
         // It will be replaced when next BOS creates a new zone
         pullbackDirection := 0
@@ -1434,6 +1440,9 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
             if low <= currentFib618
                 hasEnteredDeep := true
                 deepestPullbackLevel := math.min(na(deepestPullbackLevel) ? low : deepestPullbackLevel, low)
+            // V7.2: Swing Respect - check if price touched protected level
+            if not na(protectedLow) and low <= protectedLow
+                protectedLevelTested := true
         else
             inGoldenZone := high >= currentFib50 and close <= currentFib618
             inDeepZone := high >= currentFib618 and close <= currentFib786
@@ -1441,7 +1450,10 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
             if high >= currentFib618
                 hasEnteredDeep := true
                 deepestPullbackLevel := math.max(na(deepestPullbackLevel) ? high : deepestPullbackLevel, high)
-        
+            // V7.2: Swing Respect - check if price touched protected level
+            if not na(protectedHigh) and high >= protectedHigh
+                protectedLevelTested := true
+
         // Track bars in zone
         if inGoldenZone or inDeepZone
             barsInGoldenZone += 1
@@ -1510,7 +1522,12 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
             confirmationMet := (inGoldenZone or inDeepZone) and zoneConfluence and minBarsRequirementMet
         else if confirmationType == "Both"
             confirmationMet := zoneBreakoutConfirmed and zoneConfluence and displacementConfirmed
-        
+
+        // V7.2: Apply Phase 1 filters
+        // Swing Respect filter - block entry if protected level was touched during pullback
+        if requireSwingRespect and protectedLevelTested
+            confirmationMet := false
+
         // Draw/update visuals
         zoneRight = bar_index + 15
         fibLineRight = bar_index + 20
