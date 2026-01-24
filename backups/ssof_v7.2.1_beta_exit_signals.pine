@@ -3,7 +3,7 @@
 // GitHub: https://github.com/d1360tx/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V7.3.0-beta (Reversal Candle Exit)", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V7.2.1-beta (Exit Signals)", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -112,11 +112,6 @@ exitOnSwingHigh = input.bool(true, "Exit at Prior Swing High/Low?", group=grpExi
 exitOnMomentumLoss = input.bool(true, "Exit on Momentum Loss?", group=grpExit, tooltip="Exit when strong bearish/bullish candle appears against position")
 momentumLossATR = input.float(0.6, "Momentum Loss Threshold (Body/ATR)", minval=0.3, maxval=1.5, step=0.1, group=grpExit, tooltip="Counter-trend candle body must exceed this to trigger exit")
 exitOnStructureFlip = input.bool(true, "Exit on Structure Flip?", group=grpExit, tooltip="Exit when opposite BOS occurs (structure invalidated)")
-exitOnConsolidation = input.bool(true, "Exit on Consolidation at Target?", group=grpExit, tooltip="Exit when price consolidates near the target swing level (indicates resistance/support)")
-consolidationExitBars = input.int(4, "Consolidation Detection Bars", minval=3, maxval=10, group=grpExit, tooltip="Number of bars to detect consolidation at target")
-consolidationExitATR = input.float(1.5, "Consolidation Range (ATR)", minval=0.5, maxval=3.0, step=0.1, group=grpExit, tooltip="Maximum range size for consolidation detection")
-exitOnReversalCandle = input.bool(true, "Exit on Reversal Candle?", group=grpExit, tooltip="Exit when hammer (short) or shooting star (long) forms, signaling potential reversal")
-reversalWickMultiplier = input.float(2.0, "Reversal Wick Multiplier", minval=1.5, maxval=4.0, step=0.5, group=grpExit, tooltip="Lower wick must be >= this multiple of body for hammer detection")
 
 // ─────────────────────────── Styling ──────────────────────────────────────────
 grpStyle = "🎨 Styling"
@@ -341,12 +336,6 @@ var box consolidationBox = na
 // BOS Strength tracking
 var bool lastBOSStrong = false
 
-// V7.2.3: Dynamic Exit Target Tracking
-var float highestSwingInRun = na       // Track highest swing high in current bullish run
-var float lowestSwingInRun = na        // Track lowest swing low in current bearish run
-var float entrySwingTarget = na        // Dynamic exit target (updates as structure progresses)
-var int pullbackDirection = 0          // 1 = bullish, -1 = bearish (needed for target updates)
-
 // Raw BOS detection (before filters)
 // Standard: Crossover above/below swing level
 rawBullishBOS = not na(confirmedSwingHigh) and bodyClosesAbove(confirmedSwingHigh) and close[1] <= confirmedSwingHigh
@@ -439,10 +428,6 @@ if bullishBOS
     barsSinceImpulse := 0
     wasConsolidating := false
     
-    // V7.2.2: Reset target tracking on new bullish structure
-    // Start fresh - bearish tracking no longer relevant
-    lowestSwingInRun := na
-    
     // V7.0 SMC-CORRECT: Protected level = the most recent swing low (HL) at the moment BOS triggers
     // Per ICT/SMC research: "The swing low prior to BOS" is the protected low
     // Using confirmedSwingLow ensures it's the HL that DIRECTLY preceded/enabled this BOS
@@ -483,10 +468,6 @@ if bearishBOS
     lastBOSStrong := bosIsStrong
     barsSinceImpulse := 0
     wasConsolidating := false
-    
-    // V7.2.2: Reset target tracking on new bearish structure
-    // Start fresh - bullish tracking no longer relevant
-    highestSwingInRun := na
     
     // V7.0 SMC-CORRECT: Protected level = the most recent swing high (LH) at the moment BOS triggers
     // Per ICT/SMC research: "The swing high prior to BOS" is the protected high
@@ -573,25 +554,6 @@ if structureState == -1 and not na(swingHigh)
         protectedHigh := swingHigh
         protectedHighBar := bar_index - swingLength
         impulseHigh := swingHigh  // Also update impulse origin
-
-// ─────────────────────────── Dynamic Exit Target Updates - V7.2.3 ──────────────────────────
-// Update exit target dynamically as new swing highs/lows are confirmed
-// This ensures target tracks the highest swing in current structure (progressive targeting)
-// V7.3: Only update target BEFORE entry is confirmed - locks target at entry time
-
-// Bullish structure: Update target when new swing high confirmed (only before entry)
-if structureState == 1 and pullbackDirection == 1 and not na(swingHigh) and not entryConfirmed
-    // New swing high just confirmed - check if it's higher than current target
-    if swingHigh > highestSwingInRun or na(highestSwingInRun)
-        highestSwingInRun := swingHigh
-        entrySwingTarget := highestSwingInRun
-
-// Bearish structure: Update target when new swing low confirmed (only before entry)
-if structureState == -1 and pullbackDirection == -1 and not na(swingLow) and not entryConfirmed
-    // New swing low just confirmed - check if it's lower than current target
-    if swingLow < lowestSwingInRun or na(lowestSwingInRun)
-        lowestSwingInRun := swingLow
-        entrySwingTarget := lowestSwingInRun
 
 // Liquidity Sweep detection
 bullSweep = showLiqSweeps and not na(confirmedSwingHigh) and high > confirmedSwingHigh and close <= confirmedSwingHigh
@@ -1241,7 +1203,7 @@ var float currentFibExtreme = na
 var float currentFib50 = na
 var float currentFib618 = na
 var float currentFib786 = na
-// Note: pullbackDirection moved to structure section (line 346) to allow early access
+var int pullbackDirection = 0    // 1 = bullish, -1 = bearish
 var bool inGoldenZone = false
 var bool inDeepZone = false
 var bool pullbackConfirmed = false
@@ -1258,11 +1220,10 @@ var float internalSwingLow = na
 var bool entryConfirmed = false        // Entry signal triggered
 var int entryBar = na                  // Bar when entry occurred
 var float entryPrice = na              // Price at entry
-// Note: entrySwingTarget, highestSwingInRun, lowestSwingInRun moved to structure section (lines 343-345)
+var float entrySwingTarget = na        // Prior swing high/low to use as exit target
 var bool exitSignalShown = false       // Exit signal already shown
 var bool protectedLevelTested = false  // Track if protected level was touched during pullback
 var int barsForGoStatus = 0            // Track bars since entry for GO status (show for 3 bars)
-var int barsNearTarget = 0             // Track how long price stays near target
 
 // Detect internal structure for confirmation
 miniSwingHigh = ta.pivothigh(high, internalLength, internalLength)
@@ -1322,19 +1283,6 @@ if showPullbackZone
         barsInGoldenZone := 0
         hasEnteredDeep := false
         deepestPullbackLevel := na
-        
-        // V7.2.2: Dynamic progressive target system
-        // Target = highest confirmed swing high in the current bullish structure
-        // This ensures target progresses as new highs are made
-        if na(highestSwingInRun) or confirmedSwingHigh > highestSwingInRun
-            highestSwingInRun := confirmedSwingHigh
-        entrySwingTarget := highestSwingInRun
-        
-        exitSignalShown := false
-        entryConfirmed := false
-        barsNearTarget := 0
-        reversalCandleDetected := false
-        reversalCandleExitLevel := na
 
         // Calculate fib levels (for bullish: retracement goes DOWN from impulse high to impulse low)
         fibRange = currentFibExtreme - currentFibOrigin
@@ -1344,7 +1292,7 @@ if showPullbackZone
 
         // Reset internal swing for confirmation tracking
         internalSwingHigh := na
-
+    
     // Bearish BOS - set up for bearish pullback entry
     if bearishBOS and not na(impulseHigh) and not na(impulseLow)
         // Clean up old zone
@@ -1363,19 +1311,6 @@ if showPullbackZone
         barsInGoldenZone := 0
         hasEnteredDeep := false
         deepestPullbackLevel := na
-        
-        // V7.2.2: Dynamic progressive target system
-        // Target = lowest confirmed swing low in the current bearish structure
-        // This ensures target progresses as new lows are made
-        if na(lowestSwingInRun) or confirmedSwingLow < lowestSwingInRun
-            lowestSwingInRun := confirmedSwingLow
-        entrySwingTarget := lowestSwingInRun
-
-        exitSignalShown := false
-        entryConfirmed := false
-        barsNearTarget := 0
-        reversalCandleDetected := false
-        reversalCandleExitLevel := na
 
         // Calculate fib levels (for bearish: retracement goes UP from impulse low to impulse high)
         fibRange = currentFibOrigin - currentFibExtreme
@@ -1633,179 +1568,6 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
 pullbackEntryLong = showPullbackZone and pullbackDirection == 1 and (inGoldenZone or inDeepZone) and not pullbackConfirmed
 pullbackEntryShort = showPullbackZone and pullbackDirection == -1 and (inGoldenZone or inDeepZone) and not pullbackConfirmed
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ EXIT SIGNALS (PHASE 2) ░░░░░░░░░░░░░░░░░░░░░░░░░
-// ══════════════════════════════════════════════════════════════════════════════
-
-// Declare exit condition variables
-var bool exitTargetReached = false
-var bool exitMomentumLoss = false
-var bool exitStructureFlip = false
-var bool exitConsolidationAtTarget = false
-var bool exitReversalCandle = false
-var float reversalCandleExitLevel = na  // Price level to exit (hammer high for short, shooting star low for long)
-var bool reversalCandleDetected = false // Track if reversal candle has been detected
-
-if showExitSignals and entryConfirmed and not exitSignalShown
-    // Exit Condition 1: Target Reached (price hits prior swing)
-    exitTargetReached := false
-    if exitOnSwingHigh and not na(entrySwingTarget)
-        if pullbackDirection == 1 and close >= entrySwingTarget
-            exitTargetReached := true
-        else if pullbackDirection == -1 and close <= entrySwingTarget
-            exitTargetReached := true
-    
-    // Exit Condition 2: Momentum Loss (strong counter-trend candle)
-    exitMomentumLoss := false
-    if exitOnMomentumLoss
-        candleBody = math.abs(close - open)
-        if pullbackDirection == 1 and candleBody > (atrValue * momentumLossATR) and close < open
-            exitMomentumLoss := true  // Strong bearish candle in long position
-        else if pullbackDirection == -1 and candleBody > (atrValue * momentumLossATR) and close > open
-            exitMomentumLoss := true  // Strong bullish candle in short position
-    
-    // Exit Condition 3: Structure Flip (opposite BOS occurs)
-    exitStructureFlip := false
-    if exitOnStructureFlip
-        if pullbackDirection == 1 and bearishBOS
-            exitStructureFlip := true  // Bearish BOS invalidates long
-        else if pullbackDirection == -1 and bullishBOS
-            exitStructureFlip := true  // Bullish BOS invalidates short
-    
-    // Exit Condition 4: Consolidation at Target
-    exitConsolidationAtTarget := false
-    if exitOnConsolidation and not na(entrySwingTarget)
-        // Check if price is near the target
-        priceNearTarget = false
-        proximityThreshold = atrValue * 0.5  // Within 0.5 ATR of target
-        
-        if pullbackDirection == 1
-            // Long: Check if price near prior swing high
-            priceNearTarget := high >= (entrySwingTarget - proximityThreshold) and low <= (entrySwingTarget + proximityThreshold)
-        else if pullbackDirection == -1
-            // Short: Check if price near prior swing low
-            priceNearTarget := low <= (entrySwingTarget + proximityThreshold) and high >= (entrySwingTarget - proximityThreshold)
-        
-        // Count bars near target
-        if priceNearTarget
-            barsNearTarget += 1
-        else
-            barsNearTarget := 0
-        
-        // Check if consolidating (tight range for multiple bars)
-        if barsNearTarget >= consolidationExitBars
-            // Measure range over consolidation period
-            safeLookback = math.min(barsNearTarget, bar_index)
-            consolidationHigh = ta.highest(high, safeLookback)
-            consolidationLow = ta.lowest(low, safeLookback)
-            consolidationRange = consolidationHigh - consolidationLow
-            
-            // If range is tight (< consolidationExitATR * ATR), it's consolidation
-            if consolidationRange <= (atrValue * consolidationExitATR)
-                exitConsolidationAtTarget := true
-    else
-        barsNearTarget := 0
-
-    // Exit Condition 5: Reversal Candle (hammer for short, shooting star for long)
-    exitReversalCandle := false
-    if exitOnReversalCandle
-        candleBody = math.abs(close - open)
-        upperWick = high - math.max(close, open)
-        lowerWick = math.min(close, open) - low
-
-        // Minimum body size to avoid doji confusion (at least 10% of ATR)
-        minBodySize = atrValue * 0.1
-        hasValidBody = candleBody >= minBodySize
-
-        if pullbackDirection == -1  // SHORT position - look for hammer (bullish reversal)
-            // Hammer: long lower wick, small upper wick, body near top
-            isHammer = hasValidBody and lowerWick >= (candleBody * reversalWickMultiplier) and upperWick <= candleBody
-            if isHammer and not reversalCandleDetected
-                reversalCandleDetected := true
-                reversalCandleExitLevel := high  // Exit when price gets back above hammer high
-            // Check if price hit the exit level
-            if reversalCandleDetected and not na(reversalCandleExitLevel) and close > reversalCandleExitLevel
-                exitReversalCandle := true
-
-        else if pullbackDirection == 1  // LONG position - look for shooting star (bearish reversal)
-            // Shooting star: long upper wick, small lower wick, body near bottom
-            isShootingStar = hasValidBody and upperWick >= (candleBody * reversalWickMultiplier) and lowerWick <= candleBody
-            if isShootingStar and not reversalCandleDetected
-                reversalCandleDetected := true
-                reversalCandleExitLevel := low  // Exit when price gets back below shooting star low
-            // Check if price hit the exit level
-            if reversalCandleDetected and not na(reversalCandleExitLevel) and close < reversalCandleExitLevel
-                exitReversalCandle := true
-
-    // Trigger exit label on first condition met
-    if exitTargetReached and not exitSignalShown
-        exitSignalShown := true
-        exitColor = pullbackDirection == 1 ? bullColor : bearColor
-        exitY = pullbackDirection == 1 ? high + atrValue * 0.3 : low - atrValue * 0.3
-        label.new(bar_index, exitY, (pullbackDirection == 1 ? "▼" : "▲") + " EXIT\nTARGET",
-                  style=pullbackDirection == 1 ? label.style_label_down : label.style_label_up,
-                  color=exitColor,
-                  textcolor=color.white,
-                  size=size.normal)
-    else if exitMomentumLoss and not exitSignalShown
-        exitSignalShown := true
-        exitColor = pullbackDirection == 1 ? bearColor : bullColor
-        exitY = pullbackDirection == 1 ? high + atrValue * 0.3 : low - atrValue * 0.3
-        label.new(bar_index, exitY, (pullbackDirection == 1 ? "▼" : "▲") + " EXIT\nMOMENTUM",
-                  style=pullbackDirection == 1 ? label.style_label_down : label.style_label_up,
-                  color=exitColor,
-                  textcolor=color.white,
-                  size=size.normal)
-    else if exitStructureFlip and not exitSignalShown
-        exitSignalShown := true
-        exitColor = pullbackDirection == 1 ? bearColor : bullColor
-        exitY = pullbackDirection == 1 ? high + atrValue * 0.3 : low - atrValue * 0.3
-        label.new(bar_index, exitY, (pullbackDirection == 1 ? "▼" : "▲") + " EXIT\nFLIP",
-                  style=pullbackDirection == 1 ? label.style_label_down : label.style_label_up,
-                  color=exitColor,
-                  textcolor=color.white,
-                  size=size.normal)
-    else if exitConsolidationAtTarget and not exitSignalShown
-        exitSignalShown := true
-        exitColor = color.orange
-        exitY = pullbackDirection == 1 ? high + atrValue * 0.3 : low - atrValue * 0.3
-        label.new(bar_index, exitY, (pullbackDirection == 1 ? "▼" : "▲") + " EXIT\nCONSOL",
-                  style=pullbackDirection == 1 ? label.style_label_down : label.style_label_up,
-                  color=exitColor,
-                  textcolor=color.white,
-                  size=size.normal)
-    else if exitReversalCandle and not exitSignalShown
-        exitSignalShown := true
-        exitColor = color.purple
-        exitY = pullbackDirection == 1 ? high + atrValue * 0.3 : low - atrValue * 0.3
-        label.new(bar_index, exitY, (pullbackDirection == 1 ? "▼" : "▲") + " EXIT\nREVERSAL",
-                  style=pullbackDirection == 1 ? label.style_label_down : label.style_label_up,
-                  color=exitColor,
-                  textcolor=color.white,
-                  size=size.normal)
-
-// Exit alert conditions
-exitLongTarget = showExitSignals and pullbackDirection == 1 and exitTargetReached and not exitSignalShown
-exitLongMomentum = showExitSignals and pullbackDirection == 1 and exitMomentumLoss and not exitSignalShown
-exitLongFlip = showExitSignals and pullbackDirection == 1 and exitStructureFlip and not exitSignalShown
-exitLongConsol = showExitSignals and pullbackDirection == 1 and exitConsolidationAtTarget and not exitSignalShown
-exitLongReversal = showExitSignals and pullbackDirection == 1 and exitReversalCandle and not exitSignalShown
-exitShortTarget = showExitSignals and pullbackDirection == -1 and exitTargetReached and not exitSignalShown
-exitShortMomentum = showExitSignals and pullbackDirection == -1 and exitMomentumLoss and not exitSignalShown
-exitShortFlip = showExitSignals and pullbackDirection == -1 and exitStructureFlip and not exitSignalShown
-exitShortConsol = showExitSignals and pullbackDirection == -1 and exitConsolidationAtTarget and not exitSignalShown
-exitShortReversal = showExitSignals and pullbackDirection == -1 and exitReversalCandle and not exitSignalShown
-
-alertcondition(exitLongTarget, title="Exit Long - Target", message="Exit Long - Target reached on {{ticker}} {{interval}}")
-alertcondition(exitLongMomentum, title="Exit Long - Momentum", message="Exit Long - Momentum loss on {{ticker}} {{interval}}")
-alertcondition(exitLongFlip, title="Exit Long - Structure Flip", message="Exit Long - Structure flipped on {{ticker}} {{interval}}")
-alertcondition(exitLongConsol, title="Exit Long - Consolidation", message="Exit Long - Consolidation at target on {{ticker}} {{interval}}")
-alertcondition(exitLongReversal, title="Exit Long - Reversal Candle", message="Exit Long - Reversal candle detected on {{ticker}} {{interval}}")
-alertcondition(exitShortTarget, title="Exit Short - Target", message="Exit Short - Target reached on {{ticker}} {{interval}}")
-alertcondition(exitShortMomentum, title="Exit Short - Momentum", message="Exit Short - Momentum loss on {{ticker}} {{interval}}")
-alertcondition(exitShortFlip, title="Exit Short - Structure Flip", message="Exit Short - Structure flipped on {{ticker}} {{interval}}")
-alertcondition(exitShortConsol, title="Exit Short - Consolidation", message="Exit Short - Consolidation at target on {{ticker}} {{interval}}")
-alertcondition(exitShortReversal, title="Exit Short - Reversal Candle", message="Exit Short - Reversal candle detected on {{ticker}} {{interval}}")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░ DASHBOARD ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -1967,14 +1729,6 @@ alertcondition(pullbackEntryLong, title="Pullback Entry Long", message="Price in
 alertcondition(pullbackEntryShort, title="Pullback Entry Short", message="Price in golden zone for SHORT entry on {{ticker}} {{interval}}")
 alertcondition(pullbackEntryLong and pullbackConfirmed, title="Confirmed Long Entry", message="CONFIRMED Long entry signal in golden zone on {{ticker}} {{interval}}")
 alertcondition(pullbackEntryShort and pullbackConfirmed, title="Confirmed Short Entry", message="CONFIRMED Short entry signal in golden zone on {{ticker}} {{interval}}")
-
-// Exit Alerts (Phase 2)
-alertcondition(exitLongTarget, title="Exit Long - Target Reached", message="LONG EXIT: Price reached target (prior swing high) on {{ticker}} {{interval}}")
-alertcondition(exitLongMomentum, title="Exit Long - Momentum Loss", message="LONG EXIT: Strong momentum loss (counter-trend candle) on {{ticker}} {{interval}}")
-alertcondition(exitLongFlip, title="Exit Long - Structure Flip", message="LONG EXIT: Structure flipped to bearish on {{ticker}} {{interval}}")
-alertcondition(exitShortTarget, title="Exit Short - Target Reached", message="SHORT EXIT: Price reached target (prior swing low) on {{ticker}} {{interval}}")
-alertcondition(exitShortMomentum, title="Exit Short - Momentum Loss", message="SHORT EXIT: Strong momentum loss (counter-trend candle) on {{ticker}} {{interval}}")
-alertcondition(exitShortFlip, title="Exit Short - Structure Flip", message="SHORT EXIT: Structure flipped to bullish on {{ticker}} {{interval}}")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ PLOTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
