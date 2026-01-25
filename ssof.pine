@@ -486,6 +486,14 @@ lookbackBars = swingLength * protectedLookback
 lowestLookback = ta.lowest(low, lookbackBars)
 highestLookback = ta.highest(high, lookbackBars)
 
+// Pre-calculate impulse range lookbacks (called every bar to avoid scope warnings)
+barsFromProtectedLow = not na(protectedLowBar) ? bar_index - protectedLowBar : 1
+barsFromProtectedHigh = not na(protectedHighBar) ? bar_index - protectedHighBar : 1
+safeImpulseHighLookback = math.max(1, math.min(barsFromProtectedLow + 1, bar_index + 1))
+safeImpulseLowLookback = math.max(1, math.min(barsFromProtectedHigh + 1, bar_index + 1))
+impulseHighCalc = ta.highest(high, safeImpulseHighLookback)
+impulseLowCalc = ta.lowest(low, safeImpulseLowLookback)
+
 // Track consolidation state (declared here so it's available in BOS blocks)
 var bool wasConsolidating = false
 var int consolidationStartBar = na
@@ -510,11 +518,9 @@ if bullishBOS
     
     // Impulse range: origin = protected low, high = highest since that swing
     impulseLow := protectedLow
-    
-    // Find impulse high: highest since the protected low bar
-    barsFromSwing = bar_index - protectedLowBar
-    safeBarsFromSwing = math.max(1, math.min(barsFromSwing + 1, bar_index + 1))
-    impulseHigh := ta.highest(high, safeBarsFromSwing)
+
+    // Use pre-calculated impulse high (avoids ta.highest inside conditional)
+    impulseHigh := impulseHighCalc
     lastImpulseBar := bar_index
     
     // Mark consolidation as broken (keep historical if enabled)
@@ -555,11 +561,9 @@ if bearishBOS
     
     // Impulse range: origin = protected high, low = lowest since that swing
     impulseHigh := protectedHigh
-    
-    // Find impulse low: lowest since the protected high bar
-    barsFromSwing = bar_index - protectedHighBar
-    safeBarsFromSwing = math.max(1, math.min(barsFromSwing + 1, bar_index + 1))
-    impulseLow := ta.lowest(low, safeBarsFromSwing)
+
+    // Use pre-calculated impulse low (avoids ta.lowest inside conditional)
+    impulseLow := impulseLowCalc
     lastImpulseBar := bar_index
     
     // Mark consolidation as broken (keep historical if enabled)
@@ -1837,6 +1841,11 @@ var bool exitConsolidationAtTarget = false
 var bool exitReversalCandle = false
 // Note: reversalCandleExitLevel, reversalCandleDetected moved to structure section (lines 350-351)
 
+// Pre-calculate consolidation range (called every bar to avoid scope warnings)
+consolidationLookback = math.max(1, math.min(consolidationExitBars, bar_index))
+consolidationHighCalc = ta.highest(high, consolidationLookback)
+consolidationLowCalc = ta.lowest(low, consolidationLookback)
+
 if showExitSignals and entryConfirmed and not exitSignalShown
     // Exit Condition 1: Target Reached (price hits prior swing)
     exitTargetReached := false
@@ -1885,12 +1894,9 @@ if showExitSignals and entryConfirmed and not exitSignalShown
         
         // Check if consolidating (tight range for multiple bars)
         if barsNearTarget >= consolidationExitBars
-            // Measure range over consolidation period
-            safeLookback = math.min(barsNearTarget, bar_index)
-            consolidationHigh = ta.highest(high, safeLookback)
-            consolidationLow = ta.lowest(low, safeLookback)
-            consolidationRange = consolidationHigh - consolidationLow
-            
+            // Use pre-calculated consolidation range (avoids ta.highest/lowest inside conditional)
+            consolidationRange = consolidationHighCalc - consolidationLowCalc
+
             // If range is tight (< consolidationExitATR * ATR), it's consolidation
             if consolidationRange <= (atrValue * consolidationExitATR)
                 exitConsolidationAtTarget := true
