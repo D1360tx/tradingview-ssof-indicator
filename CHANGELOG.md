@@ -20,7 +20,86 @@ This convention allows easy tracking of changes and rollback if needed. Backup f
 
 ---
 
-## [7.3.0-beta] - 2026-01-24 ⭐ **CURRENT**
+## [7.4.0-beta] - 2026-01-24 ⭐ **CURRENT**
+
+### Momentum Entry + Partial Exits
+
+**Major feature release: Professional-grade position management with dual entry and 3-tier exits.**
+
+#### Feature: Momentum Entry System
+
+**Concept:** Take immediate 20% position on strong BOS, add remaining 80% on pullback.
+
+**New Settings (⚡ Momentum Entry group):**
+- `Enable Momentum Entry?` - Toggle momentum entries (default: ON)
+- `Momentum Position Size %` - Position size for momentum entry (default: 20%)
+- `Require Strong BOS?` - Only enter on Strong (S) BOS (default: ON)
+- `Min Displacement (Body/ATR)` - Minimum candle body size (default: 0.7)
+- `Show Momentum Entry Labels?` - Display ⚡ ENTRY labels (default: ON)
+
+**Behavior:**
+- On strong BOS: Enter 20% position immediately
+- If pullback entry confirms: Add remaining 80% for full position
+- If no pullback in 15 bars: Close momentum position
+- On structure flip: Close momentum position
+
+---
+
+#### Feature: 3-Tier Partial Exit System
+
+**Concept:** Replace single exit with progressive profit-taking.
+
+**New Settings (📊 Partial Exits group):**
+
+**T1 (Quick Profit - 30%):**
+- `T1 Position %` - Percentage to exit at T1 (default: 30%)
+- `T1 Target Type` - R:R Ratio or First Swing
+- `T1 R:R Ratio` - Target ratio (default: 1.5R)
+
+**T2 (Main Target - 40%):**
+- `T2 Position %` - Percentage to exit at T2 (default: 40%)
+- `T2 Target Type` - R:R Ratio or BOS Swing
+- `T2 R:R Ratio` - Target ratio (default: 2.5R)
+
+**T3 (Runner - 30%):**
+- `T3 Position %` - Percentage for runner (default: 30%)
+- `T3 Use Trail Stop?` - Enable trailing stop (default: ON)
+- `T3 Trail Method` - Swing Levels or ATR Distance
+- `T3 ATR Multiple` - ATR multiplier for trail (default: 1.5)
+
+**Visualization:**
+- `Show Target Lines?` - Draw T1/T2 target lines
+- `Show Trail Stop Line?` - Draw dynamic T3 trail stop
+
+**Exit Flow:**
+```
+Entry -> T1 @ 1.5R (exit 30%) -> T2 @ 2.5R (exit 40%) -> T3 Trail (exit 30%)
+```
+
+---
+
+#### Dashboard Enhancement
+
+**New Status Display:**
+- `MOM 20%` - Momentum entry only (gold)
+- `T1 100%` - Full position, watching T1
+- `T2 70%` - T1 hit, watching T2
+- `T3 30%` - T2 hit, trailing T3
+- `DONE` - All exits complete
+
+---
+
+#### Expected Performance Improvement
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Entry timing | Pullback only | Momentum + Pullback |
+| Avg R:R | 1.5-2.0R | 2.0-3.5R blended |
+| Risk reduction | All-at-once | Progressive |
+
+---
+
+## [7.3.0-beta] - 2026-01-24
 
 ### Phase 1 Filters Implementation
 

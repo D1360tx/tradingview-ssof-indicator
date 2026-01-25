@@ -3,7 +3,7 @@
 // GitHub: https://github.com/d1360tx/tradingview-ssof-indicator
 
 //@version=6
-indicator("Smart Structure & Order Flow [SSOF] V7.3.0-beta (Phase 1 Filters)", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Smart Structure & Order Flow [SSOF] V7.4.0-beta (Momentum + Partial Exits)", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ INPUTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -104,6 +104,38 @@ showFibLines = input.bool(true, "Show Fib Level Lines?", group=grpConfirmation, 
 requireStrongBOS = input.bool(true, "Require Strong BOS?", group=grpConfirmation, tooltip="Only create entry zones after Strong (S) BOS - filters weak impulse moves")
 requireSwingRespect = input.bool(true, "Require Swing Respect?", group=grpConfirmation, tooltip="Entry invalid if price touched protected level during pullback")
 maxBarsForEntry = input.int(25, "Max Bars for Entry", minval=10, maxval=100, group=grpConfirmation, tooltip="Invalidate zone if no entry within this many bars (prevents stale signals)")
+
+// ─────────────────────────── Momentum Entry (Tier 1) ──────────────────────────
+grpMomentum = "⚡ Momentum Entry"
+enableMomentumEntry = input.bool(true, "Enable Momentum Entry?", group=grpMomentum, tooltip="Take immediate entry on BOS confirmation (before pullback)\nCaptures full impulse move at cost of wider stop")
+momentumPositionSize = input.int(20, "Momentum Position Size %", minval=5, maxval=50, group=grpMomentum, tooltip="Percentage of full position to enter on momentum\nRecommended: 20% (leaves 80% for pullback entry)")
+momentumRequireStrong = input.bool(true, "Require Strong BOS?", group=grpMomentum, tooltip="Only take momentum entry on Strong (S) BOS\nFilters weak/low-probability setups")
+momentumMinDisplacement = input.float(0.7, "Min Displacement (Body/ATR)", minval=0.3, maxval=1.5, step=0.1, group=grpMomentum, tooltip="Minimum candle body size for momentum entry\nHigher = more aggressive BOS required")
+showMomentumLabels = input.bool(true, "Show Momentum Entry Labels?", group=grpMomentum, tooltip="Display ⚡ ENTRY labels on momentum entries")
+
+// ─────────────────────────── Partial Exits ──────────────────────────
+grpPartialExits = "📊 Partial Exits"
+enablePartialExits = input.bool(true, "Enable Partial Exits?", group=grpPartialExits, tooltip="Use 3-tier exit strategy instead of single exit\nT1: Quick profit, T2: Main target, T3: Runner")
+
+// T1 Settings
+t1PositionPct = input.int(30, "T1 Position %", minval=10, maxval=50, group=grpPartialExits, tooltip="Percentage to exit at first target")
+t1TargetType = input.string("R:R Ratio", "T1 Target Type", options=["R:R Ratio", "First Swing"], group=grpPartialExits, tooltip="R:R Ratio: Fixed multiple of risk\nFirst Swing: Nearest swing high/low")
+t1RRRatio = input.float(1.5, "T1 R:R Ratio", minval=1.0, maxval=3.0, step=0.1, group=grpPartialExits, tooltip="Risk:Reward ratio for T1 exit")
+
+// T2 Settings
+t2PositionPct = input.int(40, "T2 Position %", minval=20, maxval=60, group=grpPartialExits, tooltip="Percentage to exit at second target")
+t2TargetType = input.string("BOS Swing", "T2 Target Type", options=["R:R Ratio", "BOS Swing"], group=grpPartialExits, tooltip="R:R Ratio: Fixed multiple\nBOS Swing: Dynamic structure target")
+t2RRRatio = input.float(2.5, "T2 R:R Ratio", minval=1.5, maxval=5.0, step=0.1, group=grpPartialExits, tooltip="Risk:Reward ratio for T2 exit")
+
+// T3 Settings
+t3PositionPct = input.int(30, "T3 Position %", minval=10, maxval=50, group=grpPartialExits, tooltip="Percentage to exit at third target (runner)")
+t3UseTrailStop = input.bool(true, "T3 Use Trail Stop?", group=grpPartialExits, tooltip="Trail stop below/above swing lows/highs for runner")
+t3TrailMethod = input.string("Swing Levels", "T3 Trail Method", options=["Swing Levels", "ATR Distance"], group=grpPartialExits, tooltip="Swing Levels: Trail below HL/above LH\nATR Distance: Fixed ATR distance")
+t3ATRMultiple = input.float(1.5, "T3 ATR Multiple", minval=0.5, maxval=3.0, step=0.1, group=grpPartialExits, tooltip="ATR multiple for trail stop if using ATR method")
+
+// Partial Exit Visualization
+showTargetLines = input.bool(true, "Show Target Lines?", group=grpPartialExits, tooltip="Draw horizontal lines at T1 and T2 targets")
+showTrailStopLine = input.bool(true, "Show Trail Stop Line?", group=grpPartialExits, tooltip="Draw dynamic trail stop line for T3")
 
 // Exit Signals
 grpExit = "🚪 Exit Signals"
@@ -352,6 +384,27 @@ var bool entryConfirmed = false        // Entry signal triggered
 var bool reversalCandleDetected = false // Track if reversal candle has been detected
 var float reversalCandleExitLevel = na  // Price level to exit (hammer high for short, shooting star low for long)
 
+// V7.3.0: Momentum Entry Tracking
+var bool momentumEntryTaken = false        // Has momentum entry been executed?
+var int momentumEntryBar = na              // Bar index of momentum entry
+var float momentumEntryPrice = na          // Entry price for momentum entry
+var float momentumStopLevel = na           // Stop loss for momentum entry
+
+// V7.3.0: Partial Exit Tracking
+var bool t1ExitTriggered = false           // T1 target reached
+var bool t2ExitTriggered = false           // T2 target reached
+var bool t3ExitTriggered = false           // T3 stopped out
+var float t1TargetPrice = na               // T1 price level
+var float t2TargetPrice = na               // T2 price level
+var float t3TrailStopPrice = na            // Dynamic trail stop
+var int remainingPositionPct = 100         // Track position % remaining
+var float entryStopDistance = na           // Distance from entry to stop (for R:R calc)
+
+// Target line objects
+var line t1TargetLine = na
+var line t2TargetLine = na
+var line t3TrailLine = na
+
 // Raw BOS detection (before filters)
 // Standard: Crossover above/below swing level
 rawBullishBOS = not na(confirmedSwingHigh) and bodyClosesAbove(confirmedSwingHigh) and close[1] <= confirmedSwingHigh
@@ -527,6 +580,76 @@ if bearishBOS
         else
             box.delete(consolidationBox)
         consolidationBox := na
+
+// ─────────────────────────── V7.3.0: Momentum Entry ─────────────────────
+// Take immediate entry on strong BOS before waiting for pullback
+if enableMomentumEntry and (bullishBOS or bearishBOS)
+    // Calculate candle body for displacement check
+    candleBody = math.abs(close - open)
+
+    // Check if criteria met for momentum entry
+    momentumCriteriaMet = true
+
+    // Filter 1: Strong BOS requirement
+    if momentumRequireStrong and not bosIsStrong
+        momentumCriteriaMet := false
+
+    // Filter 2: Displacement threshold
+    if candleBody < (atrValue * momentumMinDisplacement)
+        momentumCriteriaMet := false
+
+    // Execute momentum entry
+    if momentumCriteriaMet
+        momentumEntryTaken := true
+        momentumEntryBar := bar_index
+        momentumEntryPrice := close
+
+        // Set stop level based on direction
+        if bullishBOS
+            momentumStopLevel := protectedLow
+            // Initialize target tracking
+            if na(highestSwingInRun) or confirmedSwingHigh > highestSwingInRun
+                highestSwingInRun := confirmedSwingHigh
+            entrySwingTarget := highestSwingInRun
+        else
+            momentumStopLevel := protectedHigh
+            // Initialize target tracking
+            if na(lowestSwingInRun) or confirmedSwingLow < lowestSwingInRun
+                lowestSwingInRun := confirmedSwingLow
+            entrySwingTarget := lowestSwingInRun
+
+        // Reset partial exit tracking for new position
+        t1ExitTriggered := false
+        t2ExitTriggered := false
+        t3ExitTriggered := false
+        remainingPositionPct := momentumPositionSize  // Start with momentum size only
+
+        // Draw momentum entry label
+        if showMomentumLabels
+            labelColor = bullishBOS ? color.rgb(255, 215, 0) : color.rgb(255, 140, 0)  // Gold/Orange
+            labelText = "⚡ ENTRY\n" + str.tostring(momentumPositionSize) + "%"
+            labelStyle = bullishBOS ? label.style_label_up : label.style_label_down
+            labelY = bullishBOS ? low - atrValue * 0.2 : high + atrValue * 0.2
+
+            label.new(bar_index, labelY, labelText,
+                      style=labelStyle,
+                      color=labelColor,
+                      textcolor=color.white,
+                      size=size.small)
+
+// Reset momentum entry on structure flip or max bars
+if momentumEntryTaken and not entryConfirmed
+    barsElapsed = bar_index - momentumEntryBar
+
+    // Invalidation 1: Structure flip
+    structureFlipped = (pullbackDirection == 1 and bearishBOS) or (pullbackDirection == -1 and bullishBOS)
+
+    // Invalidation 2: Max bars without pullback entry
+    if structureFlipped or barsElapsed > 15
+        momentumEntryTaken := false
+        momentumEntryBar := na
+        momentumEntryPrice := na
+        momentumStopLevel := na
 
 // ─────────────────────────── Consolidation Detection (A1) ─────────────────────
 // Post-BOS Range Logic: True consolidation = range between broken level and next swing
@@ -1644,12 +1767,59 @@ if showPullbackZone and pullbackDirection != 0 and not na(currentFibOrigin)
             signalText = pullbackDirection == 1 ? "▲ ENTRY" : "▼ ENTRY"
             signalStyle = pullbackDirection == 1 ? label.style_label_up : label.style_label_down
             signalY = pullbackDirection == 1 ? low - atrValue * 0.3 : high + atrValue * 0.3
-            
+
             label.new(bar_index, signalY, signalText,
                       style=signalStyle,
                       color=signalColor,
                       textcolor=color.white,
                       size=size.normal)
+
+            // V7.3.0: Calculate partial exit targets on entry
+            if enablePartialExits
+                // Calculate stop distance for R:R calculations
+                if pullbackDirection == 1
+                    entryStopDistance := close - protectedLow
+                else
+                    entryStopDistance := protectedHigh - close
+
+                // T1 Target Calculation
+                if t1TargetType == "R:R Ratio"
+                    if pullbackDirection == 1
+                        t1TargetPrice := close + (entryStopDistance * t1RRRatio)
+                    else
+                        t1TargetPrice := close - (entryStopDistance * t1RRRatio)
+                else  // First Swing
+                    if pullbackDirection == 1
+                        t1TargetPrice := confirmedSwingHigh
+                    else
+                        t1TargetPrice := confirmedSwingLow
+
+                // T2 Target Calculation
+                if t2TargetType == "R:R Ratio"
+                    if pullbackDirection == 1
+                        t2TargetPrice := close + (entryStopDistance * t2RRRatio)
+                    else
+                        t2TargetPrice := close - (entryStopDistance * t2RRRatio)
+                else  // BOS Swing (dynamic target)
+                    t2TargetPrice := entrySwingTarget
+
+                // T3 Trail Stop Initialization
+                if t3UseTrailStop
+                    if pullbackDirection == 1
+                        t3TrailStopPrice := protectedLow
+                    else
+                        t3TrailStopPrice := protectedHigh
+
+                // Reset exit flags
+                t1ExitTriggered := false
+                t2ExitTriggered := false
+                t3ExitTriggered := false
+
+                // Add pullback position to remaining (momentum may already have taken some)
+                if momentumEntryTaken
+                    remainingPositionPct := 100  // Now full position
+                else
+                    remainingPositionPct := 100
 
 // Confirmation alert conditions
 pullbackEntryLong = showPullbackZone and pullbackDirection == 1 and (inGoldenZone or inDeepZone) and not pullbackConfirmed
@@ -1805,6 +1975,144 @@ if showExitSignals and entryConfirmed and not exitSignalShown
                   textcolor=color.white,
                   size=size.normal)
 
+// ─────────────────────────── V7.3.0: Partial Exit System ─────────────────────
+if enablePartialExits and entryConfirmed and remainingPositionPct > 0
+
+    // T1 Exit Check (first tier)
+    if not t1ExitTriggered and not na(t1TargetPrice)
+        t1Reached = false
+        if pullbackDirection == 1 and high >= t1TargetPrice
+            t1Reached := true
+        else if pullbackDirection == -1 and low <= t1TargetPrice
+            t1Reached := true
+
+        if t1Reached
+            t1ExitTriggered := true
+            remainingPositionPct -= t1PositionPct
+
+            // T1 Exit Label
+            exitColor = color.rgb(0, 200, 83)  // Green for profit
+            exitY = pullbackDirection == 1 ? high + atrValue * 0.3 : low - atrValue * 0.3
+            label.new(bar_index, exitY,
+                (pullbackDirection == 1 ? "▼" : "▲") + " T1\n" + str.tostring(t1PositionPct) + "%",
+                style=pullbackDirection == 1 ? label.style_label_down : label.style_label_up,
+                color=exitColor,
+                textcolor=color.white,
+                size=size.normal)
+
+    // T2 Exit Check (second tier - after T1)
+    if t1ExitTriggered and not t2ExitTriggered and not na(t2TargetPrice)
+        t2Reached = false
+        if pullbackDirection == 1 and high >= t2TargetPrice
+            t2Reached := true
+        else if pullbackDirection == -1 and low <= t2TargetPrice
+            t2Reached := true
+
+        if t2Reached
+            t2ExitTriggered := true
+            remainingPositionPct -= t2PositionPct
+
+            // T2 Exit Label
+            exitColor = color.rgb(0, 200, 83)
+            exitY = pullbackDirection == 1 ? high + atrValue * 0.3 : low - atrValue * 0.3
+            label.new(bar_index, exitY,
+                (pullbackDirection == 1 ? "▼" : "▲") + " T2\n" + str.tostring(t2PositionPct) + "%",
+                style=pullbackDirection == 1 ? label.style_label_down : label.style_label_up,
+                color=exitColor,
+                textcolor=color.white,
+                size=size.normal)
+
+    // T3 Exit Check (runner with trail stop - after T2)
+    if t2ExitTriggered and not t3ExitTriggered
+        // Update trail stop
+        if t3UseTrailStop
+            if t3TrailMethod == "Swing Levels"
+                // Trail stop at swing levels
+                if pullbackDirection == 1 and not na(swingLow)
+                    // Trail up below new Higher Lows
+                    if swingLow > t3TrailStopPrice or na(t3TrailStopPrice)
+                        t3TrailStopPrice := swingLow
+                else if pullbackDirection == -1 and not na(swingHigh)
+                    // Trail down above new Lower Highs
+                    if swingHigh < t3TrailStopPrice or na(t3TrailStopPrice)
+                        t3TrailStopPrice := swingHigh
+            else  // ATR Distance method
+                if pullbackDirection == 1
+                    newTrail = high - (atrValue * t3ATRMultiple)
+                    if newTrail > t3TrailStopPrice or na(t3TrailStopPrice)
+                        t3TrailStopPrice := newTrail
+                else
+                    newTrail = low + (atrValue * t3ATRMultiple)
+                    if newTrail < t3TrailStopPrice or na(t3TrailStopPrice)
+                        t3TrailStopPrice := newTrail
+
+        // Check if trail stop hit
+        t3StopHit = false
+        if not na(t3TrailStopPrice)
+            if pullbackDirection == 1 and close < t3TrailStopPrice
+                t3StopHit := true
+            else if pullbackDirection == -1 and close > t3TrailStopPrice
+                t3StopHit := true
+
+        // Check for structure flip (also exits T3)
+        if (pullbackDirection == 1 and bearishBOS) or (pullbackDirection == -1 and bullishBOS)
+            t3StopHit := true
+
+        if t3StopHit
+            t3ExitTriggered := true
+            remainingPositionPct -= t3PositionPct
+
+            // T3 Exit Label
+            exitColor = color.orange
+            exitY = pullbackDirection == 1 ? low - atrValue * 0.3 : high + atrValue * 0.3
+            label.new(bar_index, exitY,
+                (pullbackDirection == 1 ? "▼" : "▲") + " T3\n" + str.tostring(t3PositionPct) + "%",
+                style=pullbackDirection == 1 ? label.style_label_down : label.style_label_up,
+                color=exitColor,
+                textcolor=color.white,
+                size=size.normal)
+
+// Draw/update target lines for partial exits
+if enablePartialExits and showTargetLines and entryConfirmed
+    lineColor = pullbackDirection == 1 ? bullColor : bearColor
+
+    // T1 Target Line
+    if not t1ExitTriggered and not na(t1TargetPrice)
+        if na(t1TargetLine)
+            t1TargetLine := line.new(bar_index - 5, t1TargetPrice, bar_index + 10, t1TargetPrice,
+                color=color.new(lineColor, 60), width=1, style=line.style_dashed)
+        else
+            line.set_x2(t1TargetLine, bar_index + 10)
+    else if not na(t1TargetLine)
+        line.delete(t1TargetLine)
+        t1TargetLine := na
+
+    // T2 Target Line
+    if t1ExitTriggered and not t2ExitTriggered and not na(t2TargetPrice)
+        if na(t2TargetLine)
+            t2TargetLine := line.new(bar_index - 5, t2TargetPrice, bar_index + 10, t2TargetPrice,
+                color=color.new(lineColor, 40), width=1, style=line.style_dashed)
+        else
+            line.set_x2(t2TargetLine, bar_index + 10)
+    else if not na(t2TargetLine)
+        line.delete(t2TargetLine)
+        t2TargetLine := na
+
+    // T3 Trail Stop Line
+    if showTrailStopLine and t2ExitTriggered and not t3ExitTriggered and not na(t3TrailStopPrice)
+        trailColor = pullbackDirection == 1 ? bearColor : bullColor
+        if na(t3TrailLine)
+            t3TrailLine := line.new(bar_index - 5, t3TrailStopPrice, bar_index + 10, t3TrailStopPrice,
+                color=color.new(trailColor, 50), width=2, style=line.style_solid)
+        else
+            line.set_x1(t3TrailLine, bar_index - 5)
+            line.set_x2(t3TrailLine, bar_index + 10)
+            line.set_y1(t3TrailLine, t3TrailStopPrice)
+            line.set_y2(t3TrailLine, t3TrailStopPrice)
+    else if not na(t3TrailLine)
+        line.delete(t3TrailLine)
+        t3TrailLine := na
+
 // Exit alert conditions
 exitLongTarget = showExitSignals and pullbackDirection == 1 and exitTargetReached and not exitSignalShown
 exitLongMomentum = showExitSignals and pullbackDirection == 1 and exitMomentumLoss and not exitSignalShown
@@ -1827,6 +2135,28 @@ alertcondition(exitShortMomentum, title="Exit Short - Momentum", message="Exit S
 alertcondition(exitShortFlip, title="Exit Short - Structure Flip", message="Exit Short - Structure flipped on {{ticker}} {{interval}}")
 alertcondition(exitShortConsol, title="Exit Short - Consolidation", message="Exit Short - Consolidation at target on {{ticker}} {{interval}}")
 alertcondition(exitShortReversal, title="Exit Short - Reversal Candle", message="Exit Short - Reversal candle detected on {{ticker}} {{interval}}")
+
+// V7.3.0: Momentum Entry Alerts
+momentumEntryLong = enableMomentumEntry and bullishBOS and momentumEntryTaken and bar_index == momentumEntryBar
+momentumEntryShort = enableMomentumEntry and bearishBOS and momentumEntryTaken and bar_index == momentumEntryBar
+
+alertcondition(momentumEntryLong, title="Momentum Entry - Long", message="⚡ Momentum Entry LONG on {{ticker}} {{interval}}")
+alertcondition(momentumEntryShort, title="Momentum Entry - Short", message="⚡ Momentum Entry SHORT on {{ticker}} {{interval}}")
+
+// V7.3.0: Partial Exit Alerts
+exitT1Long = enablePartialExits and pullbackDirection == 1 and t1ExitTriggered and not t2ExitTriggered
+exitT1Short = enablePartialExits and pullbackDirection == -1 and t1ExitTriggered and not t2ExitTriggered
+exitT2Long = enablePartialExits and pullbackDirection == 1 and t2ExitTriggered and not t3ExitTriggered
+exitT2Short = enablePartialExits and pullbackDirection == -1 and t2ExitTriggered and not t3ExitTriggered
+exitT3Long = enablePartialExits and pullbackDirection == 1 and t3ExitTriggered
+exitT3Short = enablePartialExits and pullbackDirection == -1 and t3ExitTriggered
+
+alertcondition(exitT1Long, title="Exit T1 - Long", message="EXIT T1 LONG on {{ticker}} {{interval}}")
+alertcondition(exitT1Short, title="Exit T1 - Short", message="EXIT T1 SHORT on {{ticker}} {{interval}}")
+alertcondition(exitT2Long, title="Exit T2 - Long", message="EXIT T2 LONG on {{ticker}} {{interval}}")
+alertcondition(exitT2Short, title="Exit T2 - Short", message="EXIT T2 SHORT on {{ticker}} {{interval}}")
+alertcondition(exitT3Long, title="Exit T3 - Long", message="EXIT T3 LONG on {{ticker}} {{interval}}")
+alertcondition(exitT3Short, title="Exit T3 - Short", message="EXIT T3 SHORT on {{ticker}} {{interval}}")
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░ DASHBOARD ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -1856,61 +2186,59 @@ if showDashboard
     else
         protectedText := "-"
     
-    // Pullback Zone Status (shortened) - V7.2.1: Time-based status transitions
+    // Pullback Zone Status (shortened) - V7.3.0: Enhanced with momentum/partial exits
     var string pullbackStatus = "-"
     var color pullbackStatusColor = color.gray
-    
+
     // Track bars since entry confirmed for status transitions
     if pullbackConfirmed and not entryConfirmed
         entryConfirmed := true
         entryBar := bar_index
         barsForGoStatus := 0
-    
+
     if entryConfirmed and not na(entryBar)
         barsForGoStatus := bar_index - entryBar
-    
-    // Status progression logic
-    if pullbackDirection == 1
-        if entryConfirmed and barsForGoStatus < 3
-            // Show GO for 3 bars after confirmation
-            pullbackStatus := "GO▲"
-            pullbackStatusColor := bullColor
+
+    // V7.3.0: Enhanced status progression with partial exits
+    if pullbackDirection != 0
+        dirArrow = pullbackDirection == 1 ? "▲" : "▼"
+        dirColor = pullbackDirection == 1 ? bullColor : bearColor
+
+        // Check partial exit status first
+        if enablePartialExits and entryConfirmed
+            if t3ExitTriggered
+                pullbackStatus := "DONE" + dirArrow
+                pullbackStatusColor := color.gray
+            else if t2ExitTriggered
+                pullbackStatus := "T3 " + str.tostring(remainingPositionPct) + "%"
+                pullbackStatusColor := color.orange
+            else if t1ExitTriggered
+                pullbackStatus := "T2 " + str.tostring(remainingPositionPct) + "%"
+                pullbackStatusColor := dirColor
+            else
+                pullbackStatus := "T1 " + str.tostring(remainingPositionPct) + "%"
+                pullbackStatusColor := dirColor
+        else if momentumEntryTaken and not entryConfirmed
+            // Momentum entry only (waiting for pullback)
+            pullbackStatus := "MOM " + str.tostring(momentumPositionSize) + "%"
+            pullbackStatusColor := color.rgb(255, 215, 0)  // Gold
+        else if entryConfirmed and barsForGoStatus < 3
+            pullbackStatus := "GO" + dirArrow
+            pullbackStatusColor := dirColor
         else if entryConfirmed and barsForGoStatus >= 3
-            // After 3 bars, show DONE
-            pullbackStatus := "DONE▲"
+            pullbackStatus := "DONE" + dirArrow
             pullbackStatusColor := color.gray
         else if pullbackConfirmed
-            pullbackStatus := "RDY▲"
+            pullbackStatus := "RDY" + dirArrow
             pullbackStatusColor := color.orange
         else if hasEnteredDeep and barsInGoldenZone >= minBarsInZone
-            pullbackStatus := "RDY▲"
+            pullbackStatus := "RDY" + dirArrow
             pullbackStatusColor := color.orange
         else if inGoldenZone or inDeepZone
-            pullbackStatus := "IN▲"
+            pullbackStatus := "IN" + dirArrow
             pullbackStatusColor := color.lime
         else
-            pullbackStatus := "WAIT▲"
-            pullbackStatusColor := color.yellow
-    else if pullbackDirection == -1
-        if entryConfirmed and barsForGoStatus < 3
-            // Show GO for 3 bars after confirmation
-            pullbackStatus := "GO▼"
-            pullbackStatusColor := bearColor
-        else if entryConfirmed and barsForGoStatus >= 3
-            // After 3 bars, show DONE
-            pullbackStatus := "DONE▼"
-            pullbackStatusColor := color.gray
-        else if pullbackConfirmed
-            pullbackStatus := "RDY▼"
-            pullbackStatusColor := color.orange
-        else if hasEnteredDeep and barsInGoldenZone >= minBarsInZone
-            pullbackStatus := "RDY▼"
-            pullbackStatusColor := color.orange
-        else if inGoldenZone or inDeepZone
-            pullbackStatus := "IN▼"
-            pullbackStatusColor := color.lime
-        else
-            pullbackStatus := "WAIT▼"
+            pullbackStatus := "WAIT" + dirArrow
             pullbackStatusColor := color.yellow
     else
         // Reset entry tracking when pullback direction changes
